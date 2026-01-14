@@ -10,6 +10,7 @@ export interface Hotel {
   priceLevel: string;
   description: string;
   imageUrl?: string;
+  photos?: string[]; // Array of hotel photo URLs
   coordinates?: {
     lat: number;
     lng: number;

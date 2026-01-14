@@ -150,6 +150,7 @@ const Index = () => {
           onComplete={handlePhotosComplete} 
           hotelName={selectedHotel.name}
           hotelImage={selectedHotel.imageUrl}
+          hotelPhotos={selectedHotel.photos}
         />
       </div>
     );

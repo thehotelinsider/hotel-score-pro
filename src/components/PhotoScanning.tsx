@@ -6,19 +6,25 @@ interface PhotoScanningProps {
   onComplete: () => void;
   hotelName?: string;
   hotelImage?: string;
+  hotelPhotos?: string[]; // Array of hotel photos
 }
 
-const PhotoScanning = ({ onComplete, hotelName, hotelImage }: PhotoScanningProps) => {
+const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos }: PhotoScanningProps) => {
   const [progress, setProgress] = useState(0);
 
-  // Use hotel image if provided, otherwise fall back to mock photos
+  // Use hotel photos array if provided, otherwise fall back to single image or mock photos
   const photos = useMemo(() => {
+    // Priority 1: Use the photos array from the hotel data
+    if (hotelPhotos && hotelPhotos.length > 0) {
+      return hotelPhotos;
+    }
+    // Priority 2: Use single hotel image repeated
     if (hotelImage) {
-      // Create an array with the hotel image repeated for the scrolling effect
       return [hotelImage, hotelImage, hotelImage, hotelImage, hotelImage];
     }
+    // Priority 3: Fall back to mock photos
     return mockHotelPhotos;
-  }, [hotelImage]);
+  }, [hotelImage, hotelPhotos]);
 
   useEffect(() => {
     const timer = setInterval(() => {

@@ -43,6 +43,16 @@ For each hotel, provide:
 - reviewCount: number of reviews (100-5000)
 - priceLevel: one of "$", "$$", "$$$", "$$$$", or "$$$$$"
 - description: a brief 1-2 sentence description
+- photos: an array of 6-8 realistic Unsplash hotel photo URLs. Use URLs like:
+  * https://images.unsplash.com/photo-1566073771259-6a8506099945 (hotel exterior)
+  * https://images.unsplash.com/photo-1582719508461-905c673771fd (hotel lobby)
+  * https://images.unsplash.com/photo-1590490360182-c33d57733427 (hotel room)
+  * https://images.unsplash.com/photo-1584132967334-10e028bd69f7 (hotel pool)
+  * https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9 (hotel suite)
+  * https://images.unsplash.com/photo-1564501049412-61c2a3083791 (hotel bathroom)
+  * https://images.unsplash.com/photo-1520250497591-112f2f40a3f4 (hotel beach/resort)
+  * https://images.unsplash.com/photo-1551882547-ff40c63fe5fa (hotel restaurant)
+  Mix these and add ?w=800&q=80 for optimized loading.
 
 Generate 3-5 relevant hotels based on the search query. If the query mentions a specific location, use that. If the query is just a hotel name or brand, generate realistic hotels with that name in different locations.`;
 
@@ -105,9 +115,14 @@ Generate 3-5 relevant hotels based on the search query. If the query mentions a 
                         rating: { type: "number", description: "Rating from 3.0 to 5.0" },
                         reviewCount: { type: "number", description: "Number of reviews" },
                         priceLevel: { type: "string", description: "Price level ($, $$, $$$, $$$$, $$$$$)" },
-                        description: { type: "string", description: "Brief description" }
+                        description: { type: "string", description: "Brief description" },
+                        photos: { 
+                          type: "array", 
+                          items: { type: "string" },
+                          description: "Array of 6-8 Unsplash hotel photo URLs showing exterior, lobby, rooms, pool, etc."
+                        }
                       },
-                      required: ["id", "name", "address", "city", "state", "country", "rating", "reviewCount", "priceLevel", "description"]
+                      required: ["id", "name", "address", "city", "state", "country", "rating", "reviewCount", "priceLevel", "description", "photos"]
                     }
                   }
                 },
