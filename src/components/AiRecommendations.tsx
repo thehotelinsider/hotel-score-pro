@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { 
   Target, 
   Zap, 
@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 
 interface AiRecommendationsProps {
   recommendations: string;
+  onRevenueEstimateExtracted?: (estimate: number | null) => void;
 }
 
 interface Section {
@@ -24,7 +25,52 @@ interface Section {
   iconBgClass: string;
 }
 
-const AiRecommendations = ({ recommendations }: AiRecommendationsProps) => {
+// Helper function to extract revenue estimate from recommendations text
+export const extractRevenueEstimate = (recommendations: string): number | null => {
+  // Look for patterns like "$50,000", "$50K", "50,000/year", etc. in revenue/impact sections
+  const lines = recommendations.split('\n');
+  let inRevenueSection = false;
+  
+  for (const line of lines) {
+    const lowerLine = line.toLowerCase();
+    
+    // Check if we're entering a revenue section
+    if (lowerLine.includes('revenue') || lowerLine.includes('impact') || lowerLine.includes('estimate')) {
+      if (line.match(/^#{1,3}/) || line.match(/^\*\*/)) {
+        inRevenueSection = true;
+      }
+    }
+    
+    // Look for dollar amounts
+    if (inRevenueSection || lowerLine.includes('revenue') || lowerLine.includes('annual')) {
+      // Match patterns like $50,000, $50K, $50k, $50,000/year, etc.
+      const dollarMatch = line.match(/\$[\d,]+(?:\.\d+)?(?:K|k|M|m)?/g);
+      if (dollarMatch) {
+        for (const match of dollarMatch) {
+          let value = match.replace('$', '').replace(/,/g, '');
+          let multiplier = 1;
+          
+          if (value.toLowerCase().endsWith('k')) {
+            multiplier = 1000;
+            value = value.slice(0, -1);
+          } else if (value.toLowerCase().endsWith('m')) {
+            multiplier = 1000000;
+            value = value.slice(0, -1);
+          }
+          
+          const numValue = parseFloat(value) * multiplier;
+          if (!isNaN(numValue) && numValue > 0) {
+            return numValue;
+          }
+        }
+      }
+    }
+  }
+  
+  return null;
+};
+
+const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRecommendationsProps) => {
   const [openSections, setOpenSections] = useState<Set<number>>(new Set([0])); // First section open by default
 
   const toggleSection = (index: number) => {
@@ -131,6 +177,14 @@ const AiRecommendations = ({ recommendations }: AiRecommendationsProps) => {
     
     return sections;
   }, [recommendations]);
+
+  // Extract and report revenue estimate when recommendations change
+  useEffect(() => {
+    if (recommendations && onRevenueEstimateExtracted) {
+      const estimate = extractRevenueEstimate(recommendations);
+      onRevenueEstimateExtracted(estimate);
+    }
+  }, [recommendations, onRevenueEstimateExtracted]);
 
   const getIconConfig = (text: string): { icon: 'check' | 'x'; colorClass: string } => {
     const lowerText = text.toLowerCase();
