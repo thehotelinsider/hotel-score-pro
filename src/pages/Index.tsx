@@ -119,11 +119,15 @@ const Index = () => {
   }
 
   // Photo scanning page
-  if (stage === 'photos') {
+  if (stage === 'photos' && selectedHotel) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <PhotoScanning onComplete={handlePhotosComplete} />
+        <PhotoScanning 
+          onComplete={handlePhotosComplete} 
+          hotelName={selectedHotel.name}
+          hotelImage={selectedHotel.imageUrl}
+        />
       </div>
     );
   }
