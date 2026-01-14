@@ -1,24 +1,58 @@
 import { useState, useEffect } from 'react';
-import { ScanResult } from '@/types/hotel';
+import { ScanResult, Competitor } from '@/types/hotel';
 import ScoreCircle from './ScoreCircle';
 import IssueCard from './IssueCard';
 import CompetitorList from './CompetitorList';
 import SearchRankingItem from './SearchRankingItem';
 import { Button } from '@/components/ui/button';
-import { List, Map, Sparkles, ExternalLink, Loader2, Brain } from 'lucide-react';
+import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface ScoreCardProps {
   result: ScanResult;
+  onCompetitorsRegenerated?: (competitors: Competitor[]) => void;
 }
 
-const ScoreCard = ({ result }: ScoreCardProps) => {
+const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [competitors, setCompetitors] = useState<Competitor[]>(result.competitors);
+  const [isRegeneratingCompetitors, setIsRegeneratingCompetitors] = useState(false);
+
+  const regenerateCompetitors = async () => {
+    setIsRegeneratingCompetitors(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-competitors', {
+        body: { hotel: result.hotel },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.competitors) {
+        setCompetitors(data.competitors);
+        onCompetitorsRegenerated?.(data.competitors);
+        toast({
+          title: "Competitors updated",
+          description: `Found ${data.competitors.length} new competitors near ${result.hotel.city || 'your location'}.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error regenerating competitors:', error);
+      toast({
+        title: "Failed to regenerate competitors",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRegeneratingCompetitors(false);
+    }
+  };
 
   const fetchAiRecommendations = async () => {
     setIsLoadingAi(true);
@@ -140,11 +174,27 @@ const ScoreCard = ({ result }: ScoreCardProps) => {
 
         {/* Competitor ranking */}
         <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '100ms' }}>
-          <h2 className="text-lg font-semibold text-foreground mb-4">
-            You're ranking below {result.competitors.filter(c => c.rank < 4).length} competitors
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">
+              You're ranking below {competitors.filter(c => c.rank < 4).length} competitors
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={regenerateCompetitors}
+              disabled={isRegeneratingCompetitors}
+              className="flex items-center gap-2"
+            >
+              {isRegeneratingCompetitors ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              {isRegeneratingCompetitors ? 'Generating...' : 'Generate new competitors'}
+            </Button>
+          </div>
           <CompetitorList 
-            competitors={result.competitors.slice(0, 6)} 
+            competitors={competitors.slice(0, 6)} 
             currentHotelName={result.hotel.name}
             currentHotelRank={4}
           />
