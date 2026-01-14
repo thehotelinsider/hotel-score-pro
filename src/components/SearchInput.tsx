@@ -148,7 +148,7 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
 
       {/* Suggestions dropdown */}
       {!isSearching && showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in max-h-80 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-[100] animate-fade-in max-h-80 overflow-y-auto">
           {suggestions.map((hotel, index) => (
             <button
               key={hotel.id}
