@@ -382,8 +382,19 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           <h3 className="text-xl font-semibold text-foreground mb-2">
             Fix your website in 35 seconds using AI
           </h3>
-          <Button className="mt-4 bg-primary text-primary-foreground px-8 py-6 text-lg rounded-xl">
-            Get started
+          <Button 
+            onClick={fetchAiRecommendations}
+            disabled={isLoadingAi}
+            className="mt-4 bg-primary text-primary-foreground px-8 py-6 text-lg rounded-xl"
+          >
+            {isLoadingAi ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              'Get started'
+            )}
           </Button>
           <p className="text-xs text-muted-foreground mt-3">
             We won't publish the new website without your confirmation.
