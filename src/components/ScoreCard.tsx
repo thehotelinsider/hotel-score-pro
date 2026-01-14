@@ -139,10 +139,27 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
 
   const criticalIssues = result.issues.filter(i => i.severity === 'critical');
   
-  // Calculate conservative monthly estimate (annual / 12, or direct monthly loss)
-  const monthlyLoss = revenueEstimate 
-    ? Math.round(revenueEstimate / 12) 
-    : totalPotentialLoss;
+  // Calculate monthly loss estimate based on Overall Online Health Score tiers
+  const getScoreBasedMonthlyLoss = (score: number): { min: number; max: number } => {
+    if (score >= 90) {
+      // Excellent (0–0.5%): $200–$1,463 / month
+      return { min: 200, max: 1463 };
+    } else if (score >= 70) {
+      // Good (0–2%): $1,000–$5,850 / month
+      return { min: 1000, max: 5850 };
+    } else if (score >= 50) {
+      // Fair (2–6%): $5,850–$17,550 / month
+      return { min: 5850, max: 17550 };
+    } else {
+      // Low (6–12%): $17,550–$35,100 / month
+      return { min: 17550, max: 35100 };
+    }
+  };
+  
+  const lossRange = getScoreBasedMonthlyLoss(result.score.overall);
+  // Use midpoint of range for display, or weighted based on how far into the tier they are
+  const monthlyLoss = Math.round((lossRange.min + lossRange.max) / 2);
+  const monthlyLossRange = lossRange;
 
   // Get SEO health status
   const seoScore = result.score.seo;
@@ -210,7 +227,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
             <div className="flex items-center gap-2 mb-3">
               <TrendingDown className="w-5 h-5 text-warning" />
               <p className="text-lg font-semibold text-foreground">
-                You could be losing ~${monthlyLoss.toLocaleString()}/month
+                You could be losing ~${monthlyLossRange.min.toLocaleString()}–${monthlyLossRange.max.toLocaleString()}/month
               </p>
             </div>
             
