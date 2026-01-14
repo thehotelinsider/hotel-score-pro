@@ -14,7 +14,167 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_recommendations: {
+        Row: {
+          created_at: string
+          id: string
+          model_used: string | null
+          recommendation_text: string
+          scan_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          model_used?: string | null
+          recommendation_text: string
+          scan_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          model_used?: string | null
+          recommendation_text?: string
+          scan_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_scans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_recommendations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_scans: {
+        Row: {
+          competitors: Json | null
+          created_at: string
+          hotel_address: string | null
+          hotel_city: string | null
+          hotel_country: string | null
+          hotel_description: string | null
+          hotel_image_url: string | null
+          hotel_name: string
+          hotel_price_level: string | null
+          hotel_rating: number | null
+          hotel_review_count: number | null
+          hotel_state: string | null
+          id: string
+          issues: Json | null
+          photos: Json | null
+          rankings: Json | null
+          reviews: Json | null
+          score_ota: number | null
+          score_overall: number | null
+          score_reviews: number | null
+          score_seo: number | null
+          score_social_media: number | null
+          score_website: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          competitors?: Json | null
+          created_at?: string
+          hotel_address?: string | null
+          hotel_city?: string | null
+          hotel_country?: string | null
+          hotel_description?: string | null
+          hotel_image_url?: string | null
+          hotel_name: string
+          hotel_price_level?: string | null
+          hotel_rating?: number | null
+          hotel_review_count?: number | null
+          hotel_state?: string | null
+          id?: string
+          issues?: Json | null
+          photos?: Json | null
+          rankings?: Json | null
+          reviews?: Json | null
+          score_ota?: number | null
+          score_overall?: number | null
+          score_reviews?: number | null
+          score_seo?: number | null
+          score_social_media?: number | null
+          score_website?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          competitors?: Json | null
+          created_at?: string
+          hotel_address?: string | null
+          hotel_city?: string | null
+          hotel_country?: string | null
+          hotel_description?: string | null
+          hotel_image_url?: string | null
+          hotel_name?: string
+          hotel_price_level?: string | null
+          hotel_rating?: number | null
+          hotel_review_count?: number | null
+          hotel_state?: string | null
+          id?: string
+          issues?: Json | null
+          photos?: Json | null
+          rankings?: Json | null
+          reviews?: Json | null
+          score_ota?: number | null
+          score_overall?: number | null
+          score_reviews?: number | null
+          score_seo?: number | null
+          score_social_media?: number | null
+          score_website?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_scans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
