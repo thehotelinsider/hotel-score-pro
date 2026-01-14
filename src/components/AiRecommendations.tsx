@@ -4,6 +4,7 @@ import {
   Zap, 
   DollarSign, 
   CheckCircle2,
+  XCircle,
   AlertCircle,
   Lightbulb,
   Trophy,
@@ -131,18 +132,21 @@ const AiRecommendations = ({ recommendations }: AiRecommendationsProps) => {
     return sections;
   }, [recommendations]);
 
-  const getIconColorClass = (text: string): string => {
+  const getIconConfig = (text: string): { icon: 'check' | 'x'; colorClass: string } => {
     const lowerText = text.toLowerCase();
+    if (lowerText.includes('the issue') || lowerText.includes('issue:')) {
+      return { icon: 'x', colorClass: 'text-danger' };
+    }
     if (lowerText.includes('fix')) {
-      return 'text-danger';
+      return { icon: 'check', colorClass: 'text-danger' };
     }
     if (lowerText.includes('action')) {
-      return 'text-warning';
+      return { icon: 'check', colorClass: 'text-warning' };
     }
     if (lowerText.includes('why')) {
-      return 'text-success';
+      return { icon: 'check', colorClass: 'text-success' };
     }
-    return 'text-success';
+    return { icon: 'check', colorClass: 'text-success' };
   };
 
   const formatContent = (content: string[]) => {
@@ -165,13 +169,14 @@ const AiRecommendations = ({ recommendations }: AiRecommendationsProps) => {
       const boldMatch = line.match(/\*\*(.+?)\*\*/);
       const emphasisText = boldMatch ? boldMatch[1] : null;
 
-      // Determine icon color based on content
-      const iconColorClass = getIconColorClass(cleanLine);
+      // Determine icon and color based on content
+      const iconConfig = getIconConfig(cleanLine);
+      const IconComponent = iconConfig.icon === 'x' ? XCircle : CheckCircle2;
 
       if (isNumberedItem || isSubItem) {
         return (
           <li key={index} className="flex items-start gap-3 py-2">
-            <CheckCircle2 className={`w-4 h-4 ${iconColorClass} mt-0.5 flex-shrink-0`} />
+            <IconComponent className={`w-4 h-4 ${iconConfig.colorClass} mt-0.5 flex-shrink-0`} />
             <span className="text-sm text-foreground leading-relaxed">
               {emphasisText ? (
                 <>
