@@ -7,7 +7,7 @@ import LocationConfirmation from '@/components/LocationConfirmation';
 import PhotoScanning from '@/components/PhotoScanning';
 import ReviewScanning from '@/components/ReviewScanning';
 import ScoreCard from '@/components/ScoreCard';
-import { Hotel, ScanResult, Competitor } from '@/types/hotel';
+import { Hotel, ScanResult, Competitor, SearchRanking } from '@/types/hotel';
 import { generateMockScanResult } from '@/data/mockData';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -18,6 +18,7 @@ const Index = () => {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [rankings, setRankings] = useState<SearchRanking[]>([]);
 
   const handleSearch = (hotel: Hotel) => {
     setSelectedHotel(hotel);
@@ -25,16 +26,34 @@ const Index = () => {
   };
 
   const handleLocationComplete = async () => {
-    // Start fetching competitors in the background when location is confirmed
+    // Start fetching competitors and rankings in parallel when location is confirmed
     if (selectedHotel) {
+      // Fetch competitors first (rankings will use them)
       try {
-        const { data, error } = await supabase.functions.invoke('generate-competitors', {
+        const { data: competitorData, error: competitorError } = await supabase.functions.invoke('generate-competitors', {
           body: { hotel: selectedHotel },
         });
         
-        if (!error && data?.competitors) {
-          setCompetitors(data.competitors);
-          console.log('Generated competitors:', data.competitors);
+        if (!competitorError && competitorData?.competitors) {
+          setCompetitors(competitorData.competitors);
+          console.log('Generated competitors:', competitorData.competitors);
+          
+          // Now fetch rankings with the competitors context
+          try {
+            const { data: rankingData, error: rankingError } = await supabase.functions.invoke('generate-rankings', {
+              body: { 
+                hotel: selectedHotel,
+                competitors: competitorData.competitors 
+              },
+            });
+            
+            if (!rankingError && rankingData?.rankings) {
+              setRankings(rankingData.rankings);
+              console.log('Generated rankings:', rankingData.rankings);
+            }
+          } catch (rankErr) {
+            console.error('Failed to fetch rankings:', rankErr);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch competitors:', err);
@@ -53,6 +72,10 @@ const Index = () => {
       // Use AI-generated competitors if available, otherwise use mock data
       if (competitors.length > 0) {
         result.competitors = competitors;
+      }
+      // Use AI-generated rankings if available, otherwise use mock data
+      if (rankings.length > 0) {
+        result.rankings = rankings;
       }
       setScanResult(result);
     }
