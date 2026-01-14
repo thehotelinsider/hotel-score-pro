@@ -1,13 +1,24 @@
 import { Loader2, Maximize2, Hash, Share2, RefreshCw } from 'lucide-react';
 import { mockHotelPhotos } from '@/data/mockData';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 
 interface PhotoScanningProps {
   onComplete: () => void;
+  hotelName?: string;
+  hotelImage?: string;
 }
 
-const PhotoScanning = ({ onComplete }: PhotoScanningProps) => {
+const PhotoScanning = ({ onComplete, hotelName, hotelImage }: PhotoScanningProps) => {
   const [progress, setProgress] = useState(0);
+
+  // Use hotel image if provided, otherwise fall back to mock photos
+  const photos = useMemo(() => {
+    if (hotelImage) {
+      // Create an array with the hotel image repeated for the scrolling effect
+      return [hotelImage, hotelImage, hotelImage, hotelImage, hotelImage];
+    }
+    return mockHotelPhotos;
+  }, [hotelImage]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -31,7 +42,7 @@ const PhotoScanning = ({ onComplete }: PhotoScanningProps) => {
         <div className="relative w-full max-w-md h-[600px] overflow-hidden">
           {/* Photos stack */}
           <div className="absolute inset-0 flex flex-col gap-6 animate-slide-photos">
-            {[...mockHotelPhotos, ...mockHotelPhotos].map((photo, index) => (
+            {[...photos, ...photos].map((photo, index) => (
               <div
                 key={index}
                 className="relative mx-auto w-80 h-56 rounded-2xl overflow-hidden shadow-2xl transform"
@@ -76,7 +87,9 @@ const PhotoScanning = ({ onComplete }: PhotoScanningProps) => {
           {/* Status */}
           <div className="flex items-center gap-3 text-foreground mb-4">
             <Loader2 className="w-5 h-5 animate-spin text-accent" />
-            <span className="font-medium">Scanning photos</span>
+            <span className="font-medium">
+              {hotelName ? `Scanning photos for ${hotelName}` : 'Scanning photos'}
+            </span>
           </div>
 
           {/* Progress bar */}
