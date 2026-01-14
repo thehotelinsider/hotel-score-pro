@@ -37,11 +37,31 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
       }
 
       if (data?.competitors) {
-        setCompetitors(data.competitors);
+        // Merge new competitors with existing ones, avoiding duplicates by name
+        setCompetitors(prevCompetitors => {
+          const existingNames = new Set(prevCompetitors.map(c => c.name.toLowerCase()));
+          const newCompetitors = data.competitors.filter(
+            (c: Competitor) => !existingNames.has(c.name.toLowerCase())
+          );
+          const merged = [...prevCompetitors, ...newCompetitors];
+          // Re-rank all competitors by their rating (higher rating = better rank)
+          const ranked = merged
+            .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+            .map((c, index) => ({ ...c, rank: index + 1 }));
+          return ranked;
+        });
+        
+        const existingNames = new Set(competitors.map(c => c.name.toLowerCase()));
+        const addedCount = data.competitors.filter(
+          (c: Competitor) => !existingNames.has(c.name.toLowerCase())
+        ).length;
+        
         onCompetitorsRegenerated?.(data.competitors);
         toast({
           title: "Competitors updated",
-          description: `Found ${data.competitors.length} new competitors near ${result.hotel.city || 'your location'}.`,
+          description: addedCount > 0 
+            ? `Added ${addedCount} new competitors near ${result.hotel.city || 'your location'}.`
+            : `No new competitors found. Try again for different results.`,
         });
       }
     } catch (error) {
