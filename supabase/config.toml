@@ -1,1 +1,4 @@
 project_id = "scaiwhbhmwthykqnkxjx"
+
+[functions.analyze-hotel]
+verify_jwt = false
