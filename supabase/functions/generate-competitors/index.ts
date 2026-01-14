@@ -49,36 +49,78 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a hotel market research assistant. Given a subject hotel, generate realistic competitor hotels that would be located within a 10-mile radius in the same market.
+    // Determine hotel service type from name and price level
+    const hotelNameLower = hotel.name.toLowerCase();
+    let serviceType = 'select-service';
+    
+    if (hotelNameLower.includes('residence inn') || hotelNameLower.includes('homewood') || 
+        hotelNameLower.includes('staybridge') || hotelNameLower.includes('home2') ||
+        hotelNameLower.includes('towneplace') || hotelNameLower.includes('extended stay')) {
+      serviceType = 'extended-stay';
+    } else if (hotelNameLower.includes('ritz') || hotelNameLower.includes('four seasons') || 
+               hotelNameLower.includes('st. regis') || hotelNameLower.includes('waldorf') ||
+               hotelNameLower.includes('luxury') || hotel.priceLevel === '$$$$') {
+      serviceType = 'luxury';
+    } else if (hotelNameLower.includes('boutique') || hotelNameLower.includes('autograph') ||
+               hotelNameLower.includes('curio') || hotelNameLower.includes('tribute')) {
+      serviceType = 'boutique';
+    } else if (hotelNameLower.includes('marriott hotel') || hotelNameLower.includes('hilton hotel') ||
+               hotelNameLower.includes('sheraton') || hotelNameLower.includes('westin') ||
+               hotelNameLower.includes('hyatt regency') || hotelNameLower.includes('embassy suites')) {
+      serviceType = 'full-service';
+    } else if (hotelNameLower.includes('motel 6') || hotelNameLower.includes('super 8') ||
+               hotelNameLower.includes('red roof') || hotelNameLower.includes('econo') ||
+               hotelNameLower.includes('budget') || hotel.priceLevel === '$') {
+      serviceType = 'economy';
+    } else if (hotelNameLower.includes('springhill') || hotelNameLower.includes('fairfield') ||
+               hotelNameLower.includes('hampton') || hotelNameLower.includes('holiday inn express') ||
+               hotelNameLower.includes('comfort') || hotelNameLower.includes('la quinta') ||
+               hotelNameLower.includes('best western') || hotelNameLower.includes('courtyard')) {
+      serviceType = 'select-service';
+    }
 
-IMPORTANT: Return ONLY valid JSON with no additional text. The response must be a valid JSON object.
+    const systemPrompt = `You are a hotel market research expert. Given a subject hotel, identify REAL competitor hotels that exist in the EXACT SAME geographic area/neighborhood.
 
-For each competitor hotel, provide:
-- id: a unique identifier (use UUID format)
-- name: a realistic hotel name (mix of chain hotels and boutique/independent hotels that would be in that market)
-- rating: a realistic rating between 3.5 and 5.0 (one decimal place)
-- rank: their ranking in the local market (1-10, where 1 is best)
-- distance: approximate distance in miles from the subject hotel (0.1 to 10 miles)
-- address: a realistic street address
-- city: same city as subject hotel
-- state: same state as subject hotel
+CRITICAL RULES FOR COMPETITOR SELECTION:
+1. **PROXIMITY IS PARAMOUNT**: Competitors MUST be within 5 miles, preferably within 2-3 miles. They should be in the SAME neighborhood/area/corridor (e.g., if subject is at "Turkey Creek", find hotels at "Turkey Creek" or immediately adjacent areas).
 
-Generate exactly 5 competitor hotels that would realistically compete with the subject hotel in the same market. Consider:
-1. The subject hotel's price level and star rating when selecting competitors
-2. Include a mix of higher-rated and similarly-rated competitors
-3. Ensure realistic distances - hotels in downtown areas should be closer together
-4. Use real hotel brand names that make sense for the location`;
+2. **MATCHING SERVICE TYPE**: The subject hotel is a "${serviceType}" property. Find competitors that are the SAME service type:
+   - Select-service: Hampton Inn, Fairfield Inn, Courtyard, Holiday Inn Express, Comfort Inn, La Quinta, Best Western Plus, SpringHill Suites
+   - Extended-stay: Residence Inn, Homewood Suites, Staybridge Suites, Home2 Suites, TownePlace Suites, Extended Stay America
+   - Full-service: Marriott, Hilton, Sheraton, Westin, Hyatt Regency, Embassy Suites
+   - Luxury: Ritz-Carlton, Four Seasons, St. Regis, Waldorf Astoria
+   - Economy: Motel 6, Super 8, Red Roof Inn, Econo Lodge
+   - Boutique: Autograph Collection, Curio Collection, Tribute Portfolio, independent boutique hotels
 
-    const userPrompt = `Generate 5 competitor hotels within a 10-mile radius of this hotel:
+3. **USE REAL HOTELS**: Only include hotels that actually exist at that location. Use real hotel names, real addresses in that specific area.
 
-Hotel Name: ${hotel.name}
+4. **SAME MARKET SEGMENT**: Match the price level and target customer (business travelers, families, etc.)
+
+For each competitor, provide:
+- id: unique UUID
+- name: the REAL hotel name (must be a real hotel that exists)
+- rating: realistic rating 3.5-5.0
+- rank: local market ranking 1-8
+- distance: actual approximate distance in miles (prioritize closest hotels, most should be under 3 miles)
+- address: real street address
+- city: same city/area as subject
+- state: same state
+
+Generate 8 competitor hotels, prioritizing the CLOSEST hotels that match the service type.`;
+
+    const userPrompt = `Find the 8 closest REAL competitor hotels for this property:
+
+Subject Hotel: ${hotel.name}
 Address: ${hotel.address}
 City: ${hotel.city}, ${hotel.state}
 Country: ${hotel.country}
 Rating: ${hotel.rating}/5
 Price Level: ${hotel.priceLevel}
+Service Type: ${serviceType}
 
-Find realistic competitor hotels in the ${hotel.city}, ${hotel.state} market that would compete with this property.`;
+IMPORTANT: Find REAL hotels that actually exist in the immediate ${hotel.city} area, especially near "${hotel.address}". 
+Prioritize hotels in the SAME neighborhood/corridor that offer similar ${serviceType} accommodations.
+The competitors should be hotels a traveler would realistically compare when booking in this specific location.`;
 
     // Helper function for fetch with retry
     const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 2): Promise<Response> => {
@@ -189,10 +231,10 @@ Find realistic competitor hotels in the ${hotel.city}, ${hotel.state} market tha
       }
     }
 
-    // Sort by rank and ensure we have top 5
+    // Sort by distance (closest first) then by rank, and ensure we have top 8
     competitors = competitors
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, 5);
+      .sort((a, b) => a.distance - b.distance || a.rank - b.rank)
+      .slice(0, 8);
 
     console.log(`Generated ${competitors.length} competitors`);
 
