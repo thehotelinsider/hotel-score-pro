@@ -23,6 +23,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [competitors, setCompetitors] = useState<Competitor[]>(result.competitors);
   const [isRegeneratingCompetitors, setIsRegeneratingCompetitors] = useState(false);
+  const [revenueEstimate, setRevenueEstimate] = useState<number | null>(null);
 
   const regenerateCompetitors = async () => {
     setIsRegeneratingCompetitors(true);
@@ -158,7 +159,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           {/* Potential loss warning */}
           <div className="mt-6 p-4 bg-warning/10 rounded-xl border border-warning/20">
             <p className="text-lg font-semibold text-foreground">
-              You could be losing ~${totalPotentialLoss.toLocaleString()}/month due to {criticalIssues.length} problems
+              You could be losing ~${(revenueEstimate || totalPotentialLoss).toLocaleString()}/{revenueEstimate ? 'year' : 'month'} due to {criticalIssues.length} problems
             </p>
             <ul className="mt-3 space-y-2">
               {criticalIssues.slice(0, 3).map(issue => (
@@ -248,7 +249,10 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
 
           {showRecommendations && aiRecommendations && (
             <div className="mt-2">
-              <AiRecommendations recommendations={aiRecommendations} />
+              <AiRecommendations 
+                recommendations={aiRecommendations} 
+                onRevenueEstimateExtracted={setRevenueEstimate}
+              />
               <div className="mt-4 pt-4 border-t border-border flex justify-end">
                 <Button 
                   variant="outline" 
