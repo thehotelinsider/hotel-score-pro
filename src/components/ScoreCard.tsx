@@ -6,7 +6,7 @@ import CompetitorList from './CompetitorList';
 import SearchRankingItem from './SearchRankingItem';
 import AiRecommendations from './AiRecommendations';
 import { Button } from '@/components/ui/button';
-import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw } from 'lucide-react';
+import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -138,6 +138,35 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
     .reduce((sum, i) => sum + (i.potentialLoss || 0), 0);
 
   const criticalIssues = result.issues.filter(i => i.severity === 'critical');
+  
+  // Calculate conservative monthly estimate (annual / 12, or direct monthly loss)
+  const monthlyLoss = revenueEstimate 
+    ? Math.round(revenueEstimate / 12) 
+    : totalPotentialLoss;
+
+  // Get SEO health status
+  const seoScore = result.score.seo;
+  const getSeoHealthStatus = () => {
+    if (seoScore >= 80) return { label: 'Good', color: 'text-success' };
+    if (seoScore >= 60) return { label: 'Needs work', color: 'text-warning' };
+    return { label: 'Poor', color: 'text-danger' };
+  };
+  const seoHealth = getSeoHealthStatus();
+
+  // Get website issues
+  const websiteIssues = result.issues.filter(i => i.category === 'website' || i.category === 'seo');
+  
+  // Get search ranking health
+  const rankedKeywords = result.rankings.filter(r => typeof r.position === 'number').length;
+  const totalKeywords = result.rankings.length;
+  const searchHealthPercent = totalKeywords > 0 ? Math.round((rankedKeywords / totalKeywords) * 100) : 0;
+
+  // Get strongest competitor (rank 1 or highest rated)
+  const strongestCompetitor = competitors.length > 0 
+    ? competitors.reduce((best, current) => 
+        (current.rating || 0) > (best.rating || 0) ? current : best
+      )
+    : null;
 
   return (
     <div className="min-h-screen pt-20 pb-24 px-4">
@@ -176,21 +205,60 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
             <ScoreCircle score={result.score.overall} size="md" />
           </div>
 
-          {/* Potential loss warning */}
+          {/* Potential loss warning - Enhanced Summary */}
           <div className="mt-6 p-4 bg-warning/10 rounded-xl border border-warning/20">
-            <p className="text-lg font-semibold text-foreground">
-              You could be losing ~${(revenueEstimate || totalPotentialLoss).toLocaleString()}/{revenueEstimate ? 'year' : 'month'} due to {criticalIssues.length} problems
-            </p>
-            <ul className="mt-3 space-y-2">
-              {criticalIssues.slice(0, 3).map(issue => (
-                <li key={issue.id} className="flex items-center gap-2 text-sm text-foreground">
-                  <span className="w-5 h-5 rounded-full bg-danger/20 flex items-center justify-center">
-                    <span className="text-danger text-xs">!</span>
-                  </span>
-                  {issue.title}
-                </li>
-              ))}
-            </ul>
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingDown className="w-5 h-5 text-warning" />
+              <p className="text-lg font-semibold text-foreground">
+                You could be losing ~${monthlyLoss.toLocaleString()}/month
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {/* SEO Health */}
+              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
+                <Globe className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">SEO Health</p>
+                  <p className={`text-sm font-medium ${seoHealth.color}`}>
+                    {seoHealth.label} ({seoScore}/100)
+                  </p>
+                </div>
+              </div>
+              
+              {/* Website Issues */}
+              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
+                <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Website</p>
+                  <p className={`text-sm font-medium ${websiteIssues.length > 3 ? 'text-danger' : websiteIssues.length > 0 ? 'text-warning' : 'text-success'}`}>
+                    {websiteIssues.length} {websiteIssues.length === 1 ? 'issue' : 'issues'} found
+                  </p>
+                </div>
+              </div>
+              
+              {/* Search Results */}
+              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
+                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Search Visibility</p>
+                  <p className={`text-sm font-medium ${searchHealthPercent >= 70 ? 'text-success' : searchHealthPercent >= 40 ? 'text-warning' : 'text-danger'}`}>
+                    {rankedKeywords}/{totalKeywords} keywords ranked
+                  </p>
+                </div>
+              </div>
+              
+              {/* Top Competitor */}
+              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
+                <Trophy className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Top Competitor</p>
+                  <p className="text-sm font-medium text-foreground truncate" title={strongestCompetitor?.name}>
+                    {strongestCompetitor ? `${strongestCompetitor.name.length > 15 ? strongestCompetitor.name.slice(0, 15) + '...' : strongestCompetitor.name} (${strongestCompetitor.rating}★)` : 'None found'}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
