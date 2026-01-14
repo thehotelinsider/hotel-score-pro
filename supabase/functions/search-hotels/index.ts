@@ -46,7 +46,31 @@ For each hotel, provide:
 
 Generate 3-5 relevant hotels based on the search query. If the query mentions a specific location, use that. If the query is just a hotel name or brand, generate realistic hotels with that name in different locations.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Helper function for fetch with retry
+    const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 2): Promise<Response> => {
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await fetch(url, options);
+          // Only retry on 502/503/504 errors
+          if (response.status >= 502 && response.status <= 504 && attempt < maxRetries) {
+            console.log(`Retrying due to ${response.status} error (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+            continue;
+          }
+          return response;
+        } catch (error) {
+          lastError = error as Error;
+          if (attempt < maxRetries) {
+            console.log(`Retrying due to network error (attempt ${attempt + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          }
+        }
+      }
+      throw lastError || new Error('Request failed after retries');
+    };
+
+    const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
