@@ -286,71 +286,133 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
     );
   };
 
-  const getIconConfig = (text: string): { icon: 'check' | 'x'; colorClass: string } => {
-    const lowerText = text.toLowerCase();
-    if (lowerText.includes('the issue') || lowerText.includes('issue:')) {
-      return { icon: 'x', colorClass: 'text-danger' };
+  // Parse content into structured format with Issue, Action, Why
+  const parseStructuredContent = (content: string[]): { issue: string; action: string; why: string }[] => {
+    const items: { issue: string; action: string; why: string }[] = [];
+    let currentItem: { issue: string; action: string; why: string } = { issue: '', action: '', why: '' };
+    let currentField: 'issue' | 'action' | 'why' | null = null;
+    
+    for (const line of content) {
+      const cleanLine = line
+        .replace(/^\s*[-*]\s*/, '')
+        .replace(/^\s*\d+\.\s*/, '')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .trim();
+      
+      if (!cleanLine) continue;
+      
+      const lowerLine = cleanLine.toLowerCase();
+      
+      // Check for field markers
+      if (lowerLine.startsWith('the issue:') || lowerLine.startsWith('issue:')) {
+        // Save previous item if it has content
+        if (currentItem.issue || currentItem.action || currentItem.why) {
+          items.push({ ...currentItem });
+          currentItem = { issue: '', action: '', why: '' };
+        }
+        currentField = 'issue';
+        currentItem.issue = cleanLine.replace(/^(the )?issue:\s*/i, '').trim();
+      } else if (lowerLine.startsWith('action:')) {
+        currentField = 'action';
+        currentItem.action = cleanLine.replace(/^action:\s*/i, '').trim();
+      } else if (lowerLine.startsWith('why:')) {
+        currentField = 'why';
+        currentItem.why = cleanLine.replace(/^why:\s*/i, '').trim();
+      } else if (currentField) {
+        // Append to current field
+        currentItem[currentField] += ' ' + cleanLine;
+      } else {
+        // No field set yet, treat as new issue
+        if (currentItem.issue || currentItem.action || currentItem.why) {
+          items.push({ ...currentItem });
+        }
+        currentItem = { issue: cleanLine, action: '', why: '' };
+        currentField = 'issue';
+      }
     }
-    if (lowerText.includes('fix')) {
-      return { icon: 'check', colorClass: 'text-danger' };
+    
+    // Don't forget the last item
+    if (currentItem.issue || currentItem.action || currentItem.why) {
+      items.push(currentItem);
     }
-    if (lowerText.includes('action')) {
-      return { icon: 'check', colorClass: 'text-warning' };
-    }
-    if (lowerText.includes('why')) {
-      return { icon: 'check', colorClass: 'text-success' };
-    }
-    return { icon: 'check', colorClass: 'text-success' };
+    
+    return items;
   };
 
   const formatContent = (content: string[]) => {
-    return content.map((line, index) => {
-      // Remove markdown formatting but preserve structure
-      let cleanLine = line
-        .replace(/^\s*[-*]\s*/, '') // Remove list bullets
-        .replace(/^\s*\d+\.\s*/, '') // Remove numbered list
-        .replace(/\*\*(.+?)\*\*/g, '$1') // Remove bold markers
-        .replace(/\*(.+?)\*/g, '$1') // Remove italic markers
-        .trim();
-
-      if (!cleanLine) return null;
-
-      // Check if it's a sub-item (indented or starts with specific patterns)
-      const isSubItem = line.match(/^\s{2,}/) || line.match(/^\s*[-*]\s/);
-      const isNumberedItem = line.match(/^\s*\d+\.\s/);
-      
-      // Extract any bold text for emphasis
-      const boldMatch = line.match(/\*\*(.+?)\*\*/);
-      const emphasisText = boldMatch ? boldMatch[1] : null;
-
-      // Determine icon and color based on content
-      const iconConfig = getIconConfig(cleanLine);
-      const IconComponent = iconConfig.icon === 'x' ? XCircle : CheckCircle2;
-
-      if (isNumberedItem || isSubItem) {
+    const structuredItems = parseStructuredContent(content);
+    
+    if (structuredItems.length === 0) {
+      return content.map((line, index) => {
+        const cleanLine = line
+          .replace(/^\s*[-*]\s*/, '')
+          .replace(/^\s*\d+\.\s*/, '')
+          .replace(/\*\*(.+?)\*\*/g, '$1')
+          .replace(/\*(.+?)\*/g, '$1')
+          .trim();
+        
+        if (!cleanLine) return null;
+        
         return (
-          <li key={index} className="flex items-start gap-3 py-2">
-            <IconComponent className={`w-4 h-4 ${iconConfig.colorClass} mt-0.5 flex-shrink-0`} />
-            <span className="text-sm text-foreground leading-relaxed">
-              {emphasisText ? (
-                <>
-                  <span className="font-semibold text-foreground">{emphasisText}: </span>
-                  {cleanLine.replace(emphasisText + ':', '').replace(emphasisText, '').trim()}
-                </>
-              ) : (
-                cleanLine
-              )}
-            </span>
-          </li>
+          <p key={index} className="text-sm text-muted-foreground leading-relaxed py-1">
+            {cleanLine}
+          </p>
         );
-      }
+      });
+    }
 
-      return (
-        <p key={index} className="text-sm text-muted-foreground leading-relaxed py-1">
-          {cleanLine}
-        </p>
-      );
-    });
+    return structuredItems.map((item, index) => (
+      <div 
+        key={index} 
+        className="bg-card/50 rounded-lg p-4 border border-border/50 space-y-3"
+      >
+        {/* The Issue */}
+        {item.issue && (
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <XCircle className="w-4 h-4 text-danger" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-danger">
+                The Issue
+              </span>
+              <p className="text-sm text-foreground mt-1">{item.issue.trim()}</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Action */}
+        {item.action && (
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <Zap className="w-4 h-4 text-warning" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-warning">
+                Action
+              </span>
+              <p className="text-sm text-foreground mt-1">{item.action.trim()}</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Why */}
+        {item.why && (
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <CheckCircle2 className="w-4 h-4 text-success" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-success">
+                Why
+              </span>
+              <p className="text-sm text-foreground mt-1">{item.why.trim()}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    ));
   };
 
   if (parsedSections.length === 0) {
