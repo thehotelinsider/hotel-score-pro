@@ -7,8 +7,9 @@ import LocationConfirmation from '@/components/LocationConfirmation';
 import PhotoScanning from '@/components/PhotoScanning';
 import ReviewScanning from '@/components/ReviewScanning';
 import ScoreCard from '@/components/ScoreCard';
-import { Hotel, ScanResult } from '@/types/hotel';
+import { Hotel, ScanResult, Competitor } from '@/types/hotel';
 import { generateMockScanResult } from '@/data/mockData';
+import { supabase } from '@/integrations/supabase/client';
 
 type ScanStage = 'search' | 'location' | 'photos' | 'reviews' | 'results';
 
@@ -16,13 +17,29 @@ const Index = () => {
   const [stage, setStage] = useState<ScanStage>('search');
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
 
   const handleSearch = (hotel: Hotel) => {
     setSelectedHotel(hotel);
     setStage('location');
   };
 
-  const handleLocationComplete = () => {
+  const handleLocationComplete = async () => {
+    // Start fetching competitors in the background when location is confirmed
+    if (selectedHotel) {
+      try {
+        const { data, error } = await supabase.functions.invoke('generate-competitors', {
+          body: { hotel: selectedHotel },
+        });
+        
+        if (!error && data?.competitors) {
+          setCompetitors(data.competitors);
+          console.log('Generated competitors:', data.competitors);
+        }
+      } catch (err) {
+        console.error('Failed to fetch competitors:', err);
+      }
+    }
     setStage('photos');
   };
 
@@ -33,6 +50,10 @@ const Index = () => {
   const handleReviewsComplete = () => {
     if (selectedHotel) {
       const result = generateMockScanResult(selectedHotel);
+      // Use AI-generated competitors if available, otherwise use mock data
+      if (competitors.length > 0) {
+        result.competitors = competitors;
+      }
       setScanResult(result);
     }
     setStage('results');

@@ -1,4 +1,4 @@
-import { Star, Utensils } from 'lucide-react';
+import { Star, Utensils, MapPin } from 'lucide-react';
 import { Competitor } from '@/types/hotel';
 
 interface CompetitorListProps {
@@ -22,8 +22,12 @@ const CompetitorList = ({ competitors, currentHotelName, currentHotelRank }: Com
 
   return (
     <div className="space-y-3">
+      <p className="text-sm text-muted-foreground mb-2">
+        Top 5 competitors within 10 miles
+      </p>
       {allEntries.map((entry) => {
         const isCurrent = 'isCurrent' in entry && entry.isCurrent;
+        const distance = 'distance' in entry ? entry.distance : undefined;
         
         return (
           <div
@@ -42,9 +46,17 @@ const CompetitorList = ({ competitors, currentHotelName, currentHotelRank }: Com
               <p className={`font-medium truncate ${isCurrent ? 'text-accent-foreground' : 'text-foreground'}`}>
                 {entry.name}
               </p>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-sm text-muted-foreground">{entry.rating}</span>
-                <Star className="w-3.5 h-3.5 fill-warning text-warning" />
+              <div className="flex items-center gap-3 mt-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-muted-foreground">{entry.rating}</span>
+                  <Star className="w-3.5 h-3.5 fill-warning text-warning" />
+                </div>
+                {distance !== undefined && (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="w-3 h-3" />
+                    <span>{distance.toFixed(1)} mi</span>
+                  </div>
+                )}
               </div>
             </div>
 

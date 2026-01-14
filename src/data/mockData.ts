@@ -126,14 +126,13 @@ export const mockIssues: Issue[] = [
   }
 ];
 
+// Static mock competitors - these will be replaced by AI-generated competitors
 export const mockCompetitors: Competitor[] = [
-  { id: '1', name: 'The Hermitage Hotel', rating: 4.8, rank: 1 },
-  { id: '2', name: 'JW Marriott Nashville', rating: 4.6, rank: 2 },
-  { id: '3', name: 'The Westin Nashville', rating: 4.5, rank: 3 },
-  { id: '4', name: 'Thompson Nashville', rating: 4.4, rank: 5 },
-  { id: '5', name: 'Kimpton Aertson Hotel', rating: 4.3, rank: 6 },
-  { id: '6', name: 'Noelle Nashville', rating: 4.4, rank: 7 },
-  { id: '7', name: 'Virgin Hotels Nashville', rating: 4.2, rank: 8 }
+  { id: '1', name: 'The Hermitage Hotel', rating: 4.8, rank: 1, distance: 0.3, address: '231 6th Ave N', city: 'Nashville', state: 'TN' },
+  { id: '2', name: 'JW Marriott Nashville', rating: 4.6, rank: 2, distance: 0.5, address: '201 8th Ave S', city: 'Nashville', state: 'TN' },
+  { id: '3', name: 'The Westin Nashville', rating: 4.5, rank: 3, distance: 0.8, address: '807 Clark Pl', city: 'Nashville', state: 'TN' },
+  { id: '4', name: 'Thompson Nashville', rating: 4.4, rank: 5, distance: 1.2, address: '401 11th Ave S', city: 'Nashville', state: 'TN' },
+  { id: '5', name: 'Kimpton Aertson Hotel', rating: 4.3, rank: 6, distance: 2.1, address: '2021 Broadway', city: 'Nashville', state: 'TN' },
 ];
 
 export const mockRankings: SearchRanking[] = [
