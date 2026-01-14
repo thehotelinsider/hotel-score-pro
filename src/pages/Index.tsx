@@ -38,16 +38,11 @@ const Index = () => {
     setStage('results');
   };
 
-  const handleLogin = () => {
-    // TODO: Implement login modal
-    console.log('Login clicked');
-  };
-
   // Search page
   if (stage === 'search') {
     return (
       <div className="min-h-screen bg-background">
-        <Header onLoginClick={handleLogin} />
+        <Header />
         
         <main className="pt-32 px-4 pb-12">
           <div className="max-w-2xl mx-auto text-center">
@@ -93,7 +88,7 @@ const Index = () => {
   if (stage === 'location' && selectedHotel) {
     return (
       <div className="min-h-screen bg-background">
-        <Header showLogin={false} />
+        <Header />
         <LocationConfirmation 
           hotel={selectedHotel} 
           onContinue={handleLocationComplete}
@@ -106,7 +101,7 @@ const Index = () => {
   if (stage === 'photos') {
     return (
       <div className="min-h-screen bg-background">
-        <Header showLogin={false} />
+        <Header />
         <PhotoScanning onComplete={handlePhotosComplete} />
       </div>
     );
@@ -116,7 +111,7 @@ const Index = () => {
   if (stage === 'reviews') {
     return (
       <div className="min-h-screen bg-background">
-        <Header showLogin={false} />
+        <Header />
         <ReviewScanning onComplete={handleReviewsComplete} />
       </div>
     );
@@ -126,7 +121,7 @@ const Index = () => {
   if (stage === 'results' && scanResult) {
     return (
       <div className="min-h-screen bg-background">
-        <Header onLoginClick={handleLogin} />
+        <Header />
         <ScoreCard result={scanResult} />
       </div>
     );
