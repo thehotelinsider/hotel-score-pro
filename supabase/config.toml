@@ -2,3 +2,6 @@ project_id = "scaiwhbhmwthykqnkxjx"
 
 [functions.analyze-hotel]
 verify_jwt = false
+
+[functions.search-hotels]
+verify_jwt = false
