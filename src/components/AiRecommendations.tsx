@@ -131,6 +131,20 @@ const AiRecommendations = ({ recommendations }: AiRecommendationsProps) => {
     return sections;
   }, [recommendations]);
 
+  const getIconColorClass = (text: string): string => {
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes('fix')) {
+      return 'text-danger';
+    }
+    if (lowerText.includes('action')) {
+      return 'text-warning';
+    }
+    if (lowerText.includes('why')) {
+      return 'text-success';
+    }
+    return 'text-success';
+  };
+
   const formatContent = (content: string[]) => {
     return content.map((line, index) => {
       // Remove markdown formatting but preserve structure
@@ -151,10 +165,13 @@ const AiRecommendations = ({ recommendations }: AiRecommendationsProps) => {
       const boldMatch = line.match(/\*\*(.+?)\*\*/);
       const emphasisText = boldMatch ? boldMatch[1] : null;
 
+      // Determine icon color based on content
+      const iconColorClass = getIconColorClass(cleanLine);
+
       if (isNumberedItem || isSubItem) {
         return (
           <li key={index} className="flex items-start gap-3 py-2">
-            <CheckCircle2 className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+            <CheckCircle2 className={`w-4 h-4 ${iconColorClass} mt-0.5 flex-shrink-0`} />
             <span className="text-sm text-foreground leading-relaxed">
               {emphasisText ? (
                 <>
