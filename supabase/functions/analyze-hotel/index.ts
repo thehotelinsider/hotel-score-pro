@@ -75,6 +75,11 @@ Focus on:
 5. Social media presence and engagement
 6. Competitive positioning
 
+IMPORTANT: For each recommendation in sections 2, 3, and 4, you MUST use this exact format:
+- The Issue: [Describe the specific problem or gap]
+- Action: [Provide the specific step(s) to take]
+- Why: [Explain the impact and benefit of this action]
+
 Be specific, actionable, and prioritize recommendations by potential impact and ease of implementation.`;
 
     const userPrompt = `Analyze this hotel's online presence data and provide personalized improvement recommendations:
@@ -103,9 +108,9 @@ ${hotelData.rankings.map(r => `- "${r.keyword}": ${typeof r.position === 'number
 
 Provide a comprehensive analysis with:
 1. Executive Summary (2-3 sentences on the hotel's current online health)
-2. Top 5 Priority Actions (ranked by impact, with specific steps)
-3. Quick Wins (3 things they can do this week)
-4. Competitive Strategy (how to outrank top competitors)
+2. Top 5 Priority Actions (for EACH action use this format: "The Issue:" followed by "Action:" followed by "Why:")
+3. Quick Wins (3 things they can do this week, for EACH use: "The Issue:" followed by "Action:" followed by "Why:")
+4. Competitive Strategy (for EACH strategy use: "The Issue:" followed by "Action:" followed by "Why:")
 5. Revenue Impact Estimate (potential revenue increase if recommendations are implemented)`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
