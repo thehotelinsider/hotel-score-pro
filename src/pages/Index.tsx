@@ -77,7 +77,7 @@ const Index = () => {
             </p>
 
             {/* Search input */}
-            <div className="mb-12 animate-fade-in" style={{ animationDelay: '200ms' }}>
+            <div className="relative z-[100] mb-12 animate-fade-in" style={{ animationDelay: '200ms' }}>
               <SearchInput onSearch={handleSearch} />
             </div>
 
