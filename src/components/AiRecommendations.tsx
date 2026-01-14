@@ -23,6 +23,7 @@ interface Section {
   icon: React.ReactNode;
   colorClass: string;
   iconBgClass: string;
+  isRevenueSection?: boolean;
 }
 
 // Helper function to extract revenue estimate from recommendations text
@@ -100,49 +101,55 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
     let currentSection: Section | null = null;
     let currentContent: string[] = [];
 
-    const getSectionConfig = (title: string): { icon: React.ReactNode; colorClass: string; iconBgClass: string } => {
+    const getSectionConfig = (title: string): { icon: React.ReactNode; colorClass: string; iconBgClass: string; isRevenueSection?: boolean } => {
       const lowerTitle = title.toLowerCase();
       
       if (lowerTitle.includes('executive') || lowerTitle.includes('summary')) {
         return { 
           icon: <AlertCircle className="w-4 h-4 text-primary-foreground" />, 
           colorClass: 'from-primary/10 to-primary/5 border-primary/20 hover:border-primary/40',
-          iconBgClass: 'bg-primary'
+          iconBgClass: 'bg-primary',
+          isRevenueSection: false
         };
       }
       if (lowerTitle.includes('priority') || lowerTitle.includes('top')) {
         return { 
           icon: <Target className="w-4 h-4 text-white" />, 
           colorClass: 'from-danger/10 to-danger/5 border-danger/20 hover:border-danger/40',
-          iconBgClass: 'bg-danger'
+          iconBgClass: 'bg-danger',
+          isRevenueSection: false
         };
       }
       if (lowerTitle.includes('quick') || lowerTitle.includes('win')) {
         return { 
           icon: <Zap className="w-4 h-4 text-white" />, 
           colorClass: 'from-success/10 to-success/5 border-success/20 hover:border-success/40',
-          iconBgClass: 'bg-success'
+          iconBgClass: 'bg-success',
+          isRevenueSection: false
         };
       }
       if (lowerTitle.includes('competitive') || lowerTitle.includes('strategy')) {
         return { 
           icon: <Trophy className="w-4 h-4 text-white" />, 
           colorClass: 'from-accent/10 to-accent/5 border-accent/20 hover:border-accent/40',
-          iconBgClass: 'bg-accent'
+          iconBgClass: 'bg-accent',
+          isRevenueSection: false
         };
       }
       if (lowerTitle.includes('revenue') || lowerTitle.includes('impact') || lowerTitle.includes('estimate')) {
         return { 
           icon: <DollarSign className="w-4 h-4 text-white" />, 
           colorClass: 'from-warning/10 to-warning/5 border-warning/20 hover:border-warning/40',
-          iconBgClass: 'bg-warning'
+          iconBgClass: 'bg-warning',
+          isRevenueSection: true
         };
       }
       
       return { 
         icon: <Lightbulb className="w-4 h-4 text-foreground" />, 
         colorClass: 'from-muted to-muted/50 border-border hover:border-foreground/20',
-        iconBgClass: 'bg-muted-foreground/20'
+        iconBgClass: 'bg-muted-foreground/20',
+        isRevenueSection: false
       };
     };
 
@@ -185,6 +192,99 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
       onRevenueEstimateExtracted(estimate);
     }
   }, [recommendations, onRevenueEstimateExtracted]);
+
+  // Extract revenue data from section content for special display
+  const extractRevenueData = (content: string[]): { label: string; value: string; period?: string }[] => {
+    const revenueItems: { label: string; value: string; period?: string }[] = [];
+    
+    for (const line of content) {
+      const dollarMatch = line.match(/\$[\d,]+(?:\.\d+)?(?:K|k|M|m)?/);
+      if (dollarMatch) {
+        const cleanLine = line
+          .replace(/^\s*[-*]\s*/, '')
+          .replace(/^\s*\d+\.\s*/, '')
+          .replace(/\*\*(.+?)\*\*/g, '$1')
+          .trim();
+        
+        // Extract the label (text before the dollar amount)
+        const labelMatch = cleanLine.match(/^(.+?):\s*\$/) || cleanLine.match(/^(.+?)\s+\$/);
+        const label = labelMatch ? labelMatch[1].trim() : 'Estimated Revenue';
+        
+        // Extract period if mentioned
+        let period = '';
+        if (cleanLine.toLowerCase().includes('/year') || cleanLine.toLowerCase().includes('annual')) {
+          period = 'per year';
+        } else if (cleanLine.toLowerCase().includes('/month') || cleanLine.toLowerCase().includes('monthly')) {
+          period = 'per month';
+        }
+        
+        revenueItems.push({
+          label,
+          value: dollarMatch[0],
+          period
+        });
+      }
+    }
+    
+    return revenueItems;
+  };
+
+  // Format revenue section with prominent display
+  const formatRevenueSection = (content: string[]) => {
+    const revenueData = extractRevenueData(content);
+    const nonRevenueLines = content.filter(line => !line.match(/\$[\d,]+(?:\.\d+)?(?:K|k|M|m)?/));
+    
+    return (
+      <div className="space-y-4">
+        {/* Revenue cards grid */}
+        {revenueData.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {revenueData.map((item, idx) => (
+              <div 
+                key={idx} 
+                className="bg-card rounded-xl p-4 border border-warning/30 shadow-sm"
+              >
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  {item.label}
+                </p>
+                <p className="text-2xl font-display font-bold text-warning">
+                  {item.value}
+                  {item.period && (
+                    <span className="text-sm font-normal text-muted-foreground ml-1">
+                      {item.period}
+                    </span>
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Additional context/notes */}
+        {nonRevenueLines.length > 0 && (
+          <ul className="space-y-1">
+            {nonRevenueLines.map((line, index) => {
+              const cleanLine = line
+                .replace(/^\s*[-*]\s*/, '')
+                .replace(/^\s*\d+\.\s*/, '')
+                .replace(/\*\*(.+?)\*\*/g, '$1')
+                .replace(/\*(.+?)\*/g, '$1')
+                .trim();
+              
+              if (!cleanLine) return null;
+              
+              return (
+                <li key={index} className="flex items-start gap-3 py-1">
+                  <CheckCircle2 className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-foreground leading-relaxed">{cleanLine}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    );
+  };
 
   const getIconConfig = (text: string): { icon: 'check' | 'x'; colorClass: string } => {
     const lowerText = text.toLowerCase();
@@ -311,10 +411,14 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
             
             <CollapsibleContent>
               <div className="px-4 pb-4 pt-0">
-                <div className="pl-11">
-                  <ul className="space-y-1">
-                    {formatContent(section.content)}
-                  </ul>
+                <div className={section.isRevenueSection ? '' : 'pl-11'}>
+                  {section.isRevenueSection ? (
+                    formatRevenueSection(section.content)
+                  ) : (
+                    <ul className="space-y-1">
+                      {formatContent(section.content)}
+                    </ul>
+                  )}
                 </div>
               </div>
             </CollapsibleContent>
