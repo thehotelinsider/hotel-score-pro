@@ -40,6 +40,10 @@ export interface Competitor {
   rating: number;
   rank: number;
   imageUrl?: string;
+  distance?: number; // Distance in miles from subject hotel
+  address?: string;
+  city?: string;
+  state?: string;
 }
 
 export interface SearchRanking {
