@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ScanResult, Competitor } from '@/types/hotel';
 import ScoreCircle from './ScoreCircle';
 import IssueCard from './IssueCard';
 import CompetitorList from './CompetitorList';
 import SearchRankingItem from './SearchRankingItem';
+import AiRecommendations from './AiRecommendations';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -201,20 +202,30 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* AI Recommendations Section */}
-        <div className="bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 rounded-2xl p-6 border border-primary/20 animate-fade-in" style={{ animationDelay: '150ms' }}>
-          <div className="flex items-center gap-2 mb-4">
-            <Brain className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-foreground">AI-Powered Recommendations</h3>
+        <div className="bg-gradient-to-br from-primary/5 via-background to-accent/5 rounded-2xl p-6 border border-primary/20 animate-fade-in" style={{ animationDelay: '150ms' }}>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent">
+              <Brain className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">AI-Powered Recommendations</h3>
+              <p className="text-xs text-muted-foreground">Personalized insights to boost your online presence</p>
+            </div>
           </div>
           
           {!aiRecommendations && !isLoadingAi && (
-            <div className="text-center py-4">
-              <p className="text-muted-foreground mb-4">
-                Get personalized recommendations from our AI to improve your hotel's online presence
+            <div className="text-center py-8 px-4">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-primary" />
+              </div>
+              <h4 className="font-medium text-foreground mb-2">Unlock AI Insights</h4>
+              <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
+                Our AI will analyze your hotel's data and provide actionable recommendations to improve rankings and revenue
               </p>
               <Button 
                 onClick={fetchAiRecommendations}
-                className="bg-primary text-primary-foreground"
+                className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity"
+                size="lg"
               >
                 <Sparkles className="w-4 h-4 mr-2" />
                 Generate AI Recommendations
@@ -223,16 +234,31 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           )}
 
           {isLoadingAi && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary mr-3" />
-              <span className="text-muted-foreground">Analyzing your hotel data...</span>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+                <div className="absolute -inset-2 rounded-2xl bg-primary/10 animate-pulse" />
+              </div>
+              <p className="text-muted-foreground mt-4 font-medium">Analyzing your hotel data...</p>
+              <p className="text-xs text-muted-foreground mt-1">This may take a few moments</p>
             </div>
           )}
 
           {showRecommendations && aiRecommendations && (
-            <div className="prose prose-sm max-w-none">
-              <div className="bg-card rounded-xl p-4 border border-border whitespace-pre-wrap text-sm text-foreground leading-relaxed">
-                {aiRecommendations}
+            <div className="mt-2">
+              <AiRecommendations recommendations={aiRecommendations} />
+              <div className="mt-4 pt-4 border-t border-border flex justify-end">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={fetchAiRecommendations}
+                  disabled={isLoadingAi}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingAi ? 'animate-spin' : ''}`} />
+                  Regenerate
+                </Button>
               </div>
             </div>
           )}
