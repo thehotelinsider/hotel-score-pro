@@ -1,19 +1,81 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ScanResult } from '@/types/hotel';
 import ScoreCircle from './ScoreCircle';
 import IssueCard from './IssueCard';
 import CompetitorList from './CompetitorList';
 import SearchRankingItem from './SearchRankingItem';
 import { Button } from '@/components/ui/button';
-import { List, Map, ChevronDown, Sparkles, ExternalLink } from 'lucide-react';
+import { List, Map, Sparkles, ExternalLink, Loader2, Brain } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ScoreCardProps {
   result: ScanResult;
 }
 
 const ScoreCard = ({ result }: ScoreCardProps) => {
+  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
+  const [isLoadingAi, setIsLoadingAi] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+
+  const fetchAiRecommendations = async () => {
+    setIsLoadingAi(true);
+    try {
+      const hotelData = {
+        name: result.hotel.name,
+        address: result.hotel.address,
+        city: result.hotel.city,
+        state: result.hotel.state,
+        rating: result.hotel.rating,
+        reviewCount: result.hotel.reviewCount,
+        score: result.score,
+        issues: result.issues,
+        competitors: result.competitors,
+        rankings: result.rankings,
+      };
+
+      const { data, error } = await supabase.functions.invoke('analyze-hotel', {
+        body: { hotelData },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        if (data.error.includes('Rate limit')) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a few moments.",
+            variant: "destructive",
+          });
+        } else if (data.error.includes('credits')) {
+          toast({
+            title: "AI credits exhausted",
+            description: "Please add credits to continue using AI features.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+
+      setAiRecommendations(data.recommendations);
+      setShowRecommendations(true);
+    } catch (error) {
+      console.error('Error fetching AI recommendations:', error);
+      toast({
+        title: "Failed to get AI recommendations",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAi(false);
+    }
+  };
 
   const totalPotentialLoss = result.issues
     .filter(i => i.potentialLoss)
@@ -86,6 +148,44 @@ const ScoreCard = ({ result }: ScoreCardProps) => {
             currentHotelName={result.hotel.name}
             currentHotelRank={4}
           />
+        </div>
+
+        {/* AI Recommendations Section */}
+        <div className="bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 rounded-2xl p-6 border border-primary/20 animate-fade-in" style={{ animationDelay: '150ms' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Brain className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">AI-Powered Recommendations</h3>
+          </div>
+          
+          {!aiRecommendations && !isLoadingAi && (
+            <div className="text-center py-4">
+              <p className="text-muted-foreground mb-4">
+                Get personalized recommendations from our AI to improve your hotel's online presence
+              </p>
+              <Button 
+                onClick={fetchAiRecommendations}
+                className="bg-primary text-primary-foreground"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate AI Recommendations
+              </Button>
+            </div>
+          )}
+
+          {isLoadingAi && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary mr-3" />
+              <span className="text-muted-foreground">Analyzing your hotel data...</span>
+            </div>
+          )}
+
+          {showRecommendations && aiRecommendations && (
+            <div className="prose prose-sm max-w-none">
+              <div className="bg-card rounded-xl p-4 border border-border whitespace-pre-wrap text-sm text-foreground leading-relaxed">
+                {aiRecommendations}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* AI Fix CTA */}
