@@ -79,48 +79,112 @@ serve(async (req) => {
       serviceType = 'select-service';
     }
 
-    const systemPrompt = `You are a hotel market research expert. Given a subject hotel, identify REAL competitor hotels that exist in the EXACT SAME geographic area/neighborhood.
+    // Extract location keywords from address (like "Turkey Creek", "Cedar Bluff", etc.)
+    const addressLower = (hotel.address || '').toLowerCase();
+    const nameLower = hotel.name.toLowerCase();
+    const locationKeywords: string[] = [];
+    
+    // Common area/corridor names to look for
+    const areaPatterns = [
+      /turkey creek/i, /cedar bluff/i, /west town/i, /downtown/i, /airport/i,
+      /medical center/i, /university/i, /convention center/i, /waterfront/i,
+      /mall/i, /outlet/i, /interstate/i, /i-\d+/i, /highway/i, /exit \d+/i
+    ];
+    
+    for (const pattern of areaPatterns) {
+      const addressMatch = addressLower.match(pattern);
+      const nameMatch = nameLower.match(pattern);
+      if (addressMatch) locationKeywords.push(addressMatch[0]);
+      if (nameMatch) locationKeywords.push(nameMatch[0]);
+    }
+    
+    // Also extract from hotel name (e.g., "Knoxville West at Turkey Creek" -> "Turkey Creek", "West")
+    const locationFromName = hotel.name.match(/(?:at|near|by)\s+([^,]+)/i);
+    if (locationFromName) {
+      locationKeywords.push(locationFromName[1].trim());
+    }
+    
+    const locationHint = locationKeywords.length > 0 
+      ? `Key area/corridor: ${[...new Set(locationKeywords)].join(', ')}` 
+      : '';
 
-CRITICAL RULES FOR COMPETITOR SELECTION:
-1. **PROXIMITY IS PARAMOUNT**: Competitors MUST be within 5 miles, preferably within 2-3 miles. They should be in the SAME neighborhood/area/corridor (e.g., if subject is at "Turkey Creek", find hotels at "Turkey Creek" or immediately adjacent areas).
+    const systemPrompt = `You are an expert hotel market analyst with detailed knowledge of real hotels across the United States.
 
-2. **MATCHING SERVICE TYPE**: The subject hotel is a "${serviceType}" property. Find competitors that are the SAME service type:
-   - Select-service: Hampton Inn, Fairfield Inn, Courtyard, Holiday Inn Express, Comfort Inn, La Quinta, Best Western Plus, SpringHill Suites
-   - Extended-stay: Residence Inn, Homewood Suites, Staybridge Suites, Home2 Suites, TownePlace Suites, Extended Stay America
-   - Full-service: Marriott, Hilton, Sheraton, Westin, Hyatt Regency, Embassy Suites
-   - Luxury: Ritz-Carlton, Four Seasons, St. Regis, Waldorf Astoria
-   - Economy: Motel 6, Super 8, Red Roof Inn, Econo Lodge
-   - Boutique: Autograph Collection, Curio Collection, Tribute Portfolio, independent boutique hotels
+Your task: Identify REAL competitor hotels that exist and would be direct competitors for bookings.
 
-3. **USE REAL HOTELS**: Only include hotels that actually exist at that location. Use real hotel names, real addresses in that specific area.
+## CRITICAL REQUIREMENTS:
 
-4. **SAME MARKET SEGMENT**: Match the price level and target customer (business travelers, families, etc.)
+### 1. REAL HOTELS ONLY
+- Every hotel you list MUST be a real, currently operating hotel
+- Use actual hotel names exactly as they appear (e.g., "Homewood Suites by Hilton Knoxville West at Turkey Creek")
+- Include real street addresses for the specific location
 
-For each competitor, provide:
+### 2. SAME MICRO-LOCATION (MOST IMPORTANT)
+- Competitors must be in the EXACT SAME commercial corridor/neighborhood
+- If the hotel is "at Turkey Creek" - find other hotels "at Turkey Creek" or "Farragut" or "Cedar Bluff" areas
+- Look for hotels along the same interstate exit or commercial strip
+- Travelers compare hotels in the SAME immediate area, not across town
+
+### 3. MATCHING SERVICE TYPE: "${serviceType.toUpperCase()}"
+Find hotels that match this service category:
+${serviceType === 'select-service' ? `
+- SpringHill Suites, Fairfield Inn, Hampton Inn, Courtyard, Holiday Inn Express
+- Comfort Inn/Suites, La Quinta, Best Western Plus, Hilton Garden Inn
+- These are limited-service hotels with complimentary breakfast, business centers` : ''}
+${serviceType === 'extended-stay' ? `
+- Residence Inn, Homewood Suites, Staybridge Suites, Home2 Suites
+- TownePlace Suites, Candlewood Suites, Extended Stay America
+- Hotels with kitchens designed for stays of 5+ nights` : ''}
+${serviceType === 'full-service' ? `
+- Marriott Hotels, Hilton Hotels, Sheraton, Westin, Hyatt Regency
+- Embassy Suites, DoubleTree, Crowne Plaza
+- Hotels with restaurants, room service, meeting spaces` : ''}
+${serviceType === 'luxury' ? `
+- Ritz-Carlton, Four Seasons, St. Regis, Waldorf Astoria, JW Marriott
+- Premium hotels with extensive amenities and service` : ''}
+${serviceType === 'economy' ? `
+- Motel 6, Super 8, Red Roof Inn, Econo Lodge, Days Inn
+- Budget-friendly basic accommodations` : ''}
+${serviceType === 'boutique' ? `
+- Autograph Collection, Curio Collection, Tribute Portfolio
+- Independent boutique hotels with unique character` : ''}
+
+### 4. OUTPUT FORMAT
+For each competitor provide:
 - id: unique UUID
-- name: the REAL hotel name (must be a real hotel that exists)
-- rating: realistic rating 3.5-5.0
-- rank: local market ranking 1-8
-- distance: actual approximate distance in miles (prioritize closest hotels, most should be under 3 miles)
+- name: EXACT real hotel name as it appears on Google/booking sites
+- rating: actual Google/TripAdvisor rating (typically 3.8-4.6)
+- rank: competitive ranking 1-8 in local market
+- distance: actual distance in miles (most should be 0.5-3 miles)
 - address: real street address
-- city: same city/area as subject
-- state: same state
+- city: city name
+- state: state abbreviation`;
 
-Generate 8 competitor hotels, prioritizing the CLOSEST hotels that match the service type.`;
+    const userPrompt = `Find the 8 closest REAL competitor hotels for:
 
-    const userPrompt = `Find the 8 closest REAL competitor hotels for this property:
+**SUBJECT HOTEL:**
+${hotel.name}
+${hotel.address}
+${hotel.city}, ${hotel.state} ${hotel.country}
+Rating: ${hotel.rating}/5 | Price: ${hotel.priceLevel} | Type: ${serviceType}
+${locationHint}
 
-Subject Hotel: ${hotel.name}
-Address: ${hotel.address}
-City: ${hotel.city}, ${hotel.state}
-Country: ${hotel.country}
-Rating: ${hotel.rating}/5
-Price Level: ${hotel.priceLevel}
-Service Type: ${serviceType}
+**WHAT TO FIND:**
+1. Hotels within 0.5-3 miles in the SAME commercial area/corridor
+2. Same service type: ${serviceType} properties
+3. Hotels that travelers would directly compare when booking this area
 
-IMPORTANT: Find REAL hotels that actually exist in the immediate ${hotel.city} area, especially near "${hotel.address}". 
-Prioritize hotels in the SAME neighborhood/corridor that offer similar ${serviceType} accommodations.
-The competitors should be hotels a traveler would realistically compare when booking in this specific location.`;
+**EXAMPLE COMPETITORS FOR A SPRINGHILL SUITES IN TURKEY CREEK AREA:**
+- Homewood Suites by Hilton Knoxville West at Turkey Creek
+- Hampton Inn & Suites Knoxville-Turkey Creek/Farragut  
+- Fairfield by Marriott Inn & Suites Knoxville Turkey Creek
+- Staybridge Suites Knoxville-West, an IHG Hotel
+- Home2 Suites by Hilton Knoxville West
+- TownePlace Suites by Marriott Knoxville Cedar Bluff
+- Residence Inn by Marriott Knoxville Cedar Bluff
+- Embassy Suites by Hilton Knoxville West
+
+**FIND SIMILAR REAL HOTELS FOR THE SUBJECT HOTEL'S SPECIFIC LOCATION.**`;
 
     // Helper function for fetch with retry
     const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 2): Promise<Response> => {
