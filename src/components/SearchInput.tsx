@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowUp, Search } from 'lucide-react';
-import { mockHotels } from '@/data/mockData';
+import { ArrowUp, Search, Loader2 } from 'lucide-react';
 import { Hotel } from '@/types/hotel';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface SearchInputProps {
   onSearch: (hotel: Hotel) => void;
@@ -12,22 +13,72 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
   const [suggestions, setSuggestions] = useState<Hotel[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
+    // Cleanup debounce on unmount
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    // Debounce the search
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
     if (query.length >= 2) {
-      const filtered = mockHotels.filter(hotel =>
-        hotel.name.toLowerCase().includes(query.toLowerCase()) ||
-        hotel.city.toLowerCase().includes(query.toLowerCase())
-      );
-      setSuggestions(filtered);
-      setShowSuggestions(true);
+      debounceRef.current = setTimeout(async () => {
+        setIsSearching(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('search-hotels', {
+            body: { query }
+          });
+
+          if (error) {
+            console.error('Search error:', error);
+            toast({
+              variant: 'destructive',
+              title: 'Search failed',
+              description: error.message || 'Failed to search for hotels'
+            });
+            setSuggestions([]);
+          } else if (data?.error) {
+            console.error('Search error:', data.error);
+            toast({
+              variant: 'destructive',
+              title: 'Search failed',
+              description: data.error
+            });
+            setSuggestions([]);
+          } else {
+            setSuggestions(data?.hotels || []);
+            setShowSuggestions(true);
+          }
+        } catch (err) {
+          console.error('Search error:', err);
+          toast({
+            variant: 'destructive',
+            title: 'Search failed',
+            description: 'An unexpected error occurred'
+          });
+          setSuggestions([]);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 500); // 500ms debounce
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
     }
     setSelectedIndex(-1);
-  }, [query]);
+  }, [query, toast]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -68,22 +119,36 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Find your hotel"
+          placeholder="Find your hotel (e.g., 'Marriott New York' or 'hotels in Miami')"
           rows={2}
           className="w-full px-6 py-5 pr-16 bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-lg"
         />
         <button
           onClick={handleSubmit}
-          disabled={suggestions.length === 0}
+          disabled={suggestions.length === 0 || isSearching}
           className="absolute right-4 bottom-4 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
         >
-          <ArrowUp className="w-5 h-5" />
+          {isSearching ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <ArrowUp className="w-5 h-5" />
+          )}
         </button>
       </div>
 
-      {/* Suggestions dropdown */}
-      {showSuggestions && suggestions.length > 0 && (
+      {/* Loading indicator */}
+      {isSearching && query.length >= 2 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in">
+          <div className="px-5 py-4 flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Searching for hotels...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Suggestions dropdown */}
+      {!isSearching && showSuggestions && suggestions.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in max-h-80 overflow-y-auto">
           {suggestions.map((hotel, index) => (
             <button
               key={hotel.id}
@@ -95,14 +160,31 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
               }`}
             >
               <Search className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="font-medium text-foreground">{hotel.name}</p>
-                <p className="text-sm text-muted-foreground">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-foreground truncate">{hotel.name}</p>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    ★ {hotel.rating?.toFixed(1) || 'N/A'}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground truncate">
                   {hotel.address}, {hotel.city}, {hotel.state}
                 </p>
+                {hotel.priceLevel && (
+                  <p className="text-xs text-accent mt-1">{hotel.priceLevel}</p>
+                )}
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* No results message */}
+      {!isSearching && showSuggestions && suggestions.length === 0 && query.length >= 2 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in">
+          <div className="px-5 py-4 text-center text-muted-foreground">
+            No hotels found. Try a different search term.
+          </div>
         </div>
       )}
     </div>
