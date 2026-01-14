@@ -29,7 +29,7 @@ const Header = () => {
           <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
             <Hotel className="w-4 h-4 text-accent-foreground" />
           </div>
-          <span className="font-display font-semibold text-lg">Hotel Score Card</span>
+          <span className="font-display font-semibold text-lg">Hotel Online Score Card</span>
         </div>
         
         {user ? (
