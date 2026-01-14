@@ -76,7 +76,7 @@ const LocationConfirmation = ({ hotel, onContinue }: LocationConfirmationProps) 
 
           {/* Hotel info */}
           <div className="p-5">
-            <h2 className="text-xl font-display font-bold text-foreground">{hotel.name}</h2>
+            <h2 className="text-xl font-display font-bold text-foreground break-words">{hotel.name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
