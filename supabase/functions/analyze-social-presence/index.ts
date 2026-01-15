@@ -35,17 +35,34 @@ serve(async (req) => {
 
     const competitorNames = competitors?.slice(0, 5).map(c => c.name).join(', ') || 'local competitors';
 
-    const systemPrompt = `You are a social media analytics expert for the hospitality industry. 
+const systemPrompt = `You are a social media analytics expert for the hospitality industry. 
 You analyze hotels' social media presence and provide realistic, data-driven insights.
-Always return valid JSON matching the exact schema requested.`;
+Always return valid JSON matching the exact schema requested.
+
+CRITICAL - Follower Count Guidelines for Hotels (these are realistic ranges):
+- Facebook: Most hotels have 1,000-50,000 followers. Large chains/resorts: 50,000-500,000. Boutique hotels: 500-10,000.
+- Instagram: Similar to Facebook but often slightly lower. Most hotels: 1,000-30,000. Luxury resorts: 20,000-200,000.
+- TikTok: Hotels are newer to TikTok. Most: 100-5,000 followers. Viral hotels: 10,000-100,000.
+- YouTube: Hotels rarely focus here. Most: 50-2,000 subscribers. Active channels: 2,000-20,000.
+- LinkedIn: Company pages. Most hotels: 200-5,000 followers. Large chains: 10,000-100,000.
+
+Engagement rates should be realistic:
+- Facebook: 1-5% typical, 5-10% excellent
+- Instagram: 2-6% typical, 6-12% excellent  
+- TikTok: 3-10% typical, 10-20% excellent
+- YouTube: 2-8% typical
+- LinkedIn: 1-4% typical`;
 
     const userPrompt = `Analyze the social media presence for "${hotel.name}" located in ${hotel.city || 'the area'}${hotel.state ? `, ${hotel.state}` : ''}.
 
 Compare against these competitors: ${competitorNames}
 
 For each social platform (Facebook, Instagram, TikTok, YouTube, LinkedIn), provide:
-1. Realistic estimated metrics for the hotel (followers, posts in last 30 days, engagement rate)
-2. Average competitor metrics
+1. Realistic estimated metrics for the hotel based on the guidelines:
+   - Followers: Use realistic numbers for a hotel of this type (see guidelines above)
+   - Posts: Number of posts in last 30 days (typically 4-20 for active hotels)
+   - Engagement rate: Percentage (typically 1-8% depending on platform)
+2. Average competitor metrics (should be similar scale)
 3. A rank (1 being best) among ${(competitors?.length || 3) + 1} total hotels
 4. Status: "leading" (rank 1-2), "competitive" (rank 3-4), "behind" (rank 5+), or "inactive" (minimal/no presence)
 5. Specific actionable recommendation
@@ -56,26 +73,31 @@ Return a JSON object with this structure:
     {
       "platform": "facebook",
       "hotelMetrics": {
-        "followers": 2500,
-        "posts": 8,
+        "followers": 8500,
+        "posts": 12,
         "engagement": 3.2,
         "lastPostDate": "2025-01-10",
         "contentTypes": ["photos", "events", "reviews"]
       },
       "competitorAverage": {
-        "followers": 3200,
-        "posts": 12,
-        "engagement": 4.1
+        "followers": 7200,
+        "posts": 10,
+        "engagement": 2.8
       },
-      "rank": 3,
+      "rank": 2,
       "totalCompetitors": 5,
-      "status": "competitive",
+      "status": "leading",
       "recommendation": "Increase posting frequency to 3x per week and leverage Facebook Events for local promotions"
     }
   ]
 }
 
-Make the data realistic for a ${hotel.name} type establishment. Consider that smaller boutique hotels may have less followers but higher engagement, while chain hotels may have more followers but lower engagement.`;
+IMPORTANT:
+- Follower counts MUST be realistic whole numbers based on the guidelines
+- Smaller boutique hotels typically have 1,000-10,000 followers on major platforms
+- Larger chain hotels/resorts may have 10,000-100,000+ followers
+- TikTok and YouTube typically have fewer followers than Facebook/Instagram for hotels
+- All numbers should be believable for a real hotel's social media presence`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
