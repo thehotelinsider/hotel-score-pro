@@ -71,3 +71,23 @@ export interface Review {
   date: string;
   text: string;
 }
+
+export interface SocialPlatformMetrics {
+  platform: 'facebook' | 'instagram' | 'tiktok' | 'youtube' | 'linkedin';
+  hotelMetrics: {
+    followers: number;
+    posts: number;
+    engagement: number; // Engagement rate percentage
+    lastPostDate: string;
+    contentTypes: string[];
+  };
+  competitorAverage: {
+    followers: number;
+    posts: number;
+    engagement: number;
+  };
+  rank: number; // 1 = best among competitors
+  totalCompetitors: number;
+  status: 'leading' | 'competitive' | 'behind' | 'inactive';
+  recommendation: string;
+}

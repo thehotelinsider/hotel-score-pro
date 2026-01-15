@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.search-hotels]
 verify_jwt = false
+
+[functions.analyze-social-presence]
+verify_jwt = false
