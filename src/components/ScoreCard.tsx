@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { ScanResult, Competitor } from '@/types/hotel';
+import { useState, useEffect } from 'react';
+import { ScanResult, Competitor, SocialPlatformMetrics } from '@/types/hotel';
 import ScoreCircle from './ScoreCircle';
 import IssueCard from './IssueCard';
 import CompetitorList from './CompetitorList';
 import SearchRankingItem from './SearchRankingItem';
 import AiRecommendations from './AiRecommendations';
 import WebsiteScanResults from './WebsiteScanResults';
+import SocialPlatformPresence from './SocialPlatformPresence';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,6 +43,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   const [revenueEstimate, setRevenueEstimate] = useState<number | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [websiteScanData, setWebsiteScanData] = useState<WebsiteScanData | null>(null);
+  const [socialPlatforms, setSocialPlatforms] = useState<SocialPlatformMetrics[]>([]);
+  const [isLoadingSocial, setIsLoadingSocial] = useState(false);
 
   const scanWebsite = async () => {
     setIsScanning(true);
@@ -99,6 +102,59 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
       setIsScanning(false);
     }
   };
+
+  const fetchSocialPresence = async () => {
+    setIsLoadingSocial(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-social-presence', {
+        body: { 
+          hotel: result.hotel,
+          competitors: competitors.slice(0, 5)
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        if (data.error.includes('Rate limit')) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a few moments.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+
+      if (data?.success && data.platforms) {
+        setSocialPlatforms(data.platforms);
+        toast({
+          title: "Social analysis complete",
+          description: `Analyzed ${data.platforms.length} social platforms.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing social presence:', error);
+      toast({
+        title: "Failed to analyze social presence",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingSocial(false);
+    }
+  };
+
+  // Auto-fetch social presence when component mounts
+  useEffect(() => {
+    if (competitors.length > 0 && socialPlatforms.length === 0 && !isLoadingSocial) {
+      fetchSocialPresence();
+    }
+  }, [competitors]);
 
   const regenerateCompetitors = async () => {
     setIsRegeneratingCompetitors(true);
@@ -549,6 +605,16 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
               <SearchRankingItem key={index} ranking={ranking} />
             ))}
           </div>
+        </div>
+
+        {/* Social Platform Presence */}
+        <div className="animate-fade-in" style={{ animationDelay: '400ms' }}>
+          <SocialPlatformPresence
+            platforms={socialPlatforms}
+            isLoading={isLoadingSocial}
+            onRefresh={fetchSocialPresence}
+            hotelName={result.hotel.name}
+          />
         </div>
 
       </div>
