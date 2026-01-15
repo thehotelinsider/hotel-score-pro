@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.analyze-social-presence]
 verify_jwt = false
+
+[functions.analyze-ota-reviews]
+verify_jwt = false

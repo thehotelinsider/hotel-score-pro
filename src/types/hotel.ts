@@ -91,3 +91,28 @@ export interface SocialPlatformMetrics {
   status: 'leading' | 'competitive' | 'behind' | 'inactive';
   recommendation: string;
 }
+
+export interface OTAReviewPlatformMetrics {
+  platform: 'tripadvisor' | 'google_reviews' | 'yelp' | 'facebook_reviews' | 'expedia' | 'booking' | 'agoda';
+  platformType: 'review' | 'ota';
+  hotelMetrics: {
+    rating: number;
+    reviewCount: number;
+    responseRate: number; // Percentage of reviews responded to
+    averageResponseTime: string; // e.g., "Within 24 hours"
+    recentReviewSentiment: 'positive' | 'mixed' | 'negative';
+    listingCompleteness: number; // Percentage 0-100
+    lastReviewDate: string;
+    bookingRank?: number; // For OTAs, position in search results
+  };
+  competitorAverage: {
+    rating: number;
+    reviewCount: number;
+    responseRate: number;
+    listingCompleteness: number;
+  };
+  rank: number; // 1 = best among competitors
+  totalCompetitors: number;
+  status: 'leading' | 'competitive' | 'behind' | 'not_listed';
+  recommendation: string;
+}
