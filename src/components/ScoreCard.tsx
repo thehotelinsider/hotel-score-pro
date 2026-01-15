@@ -551,14 +551,6 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           </div>
         </div>
 
-
-        {/* All issues */}
-        <div className="space-y-3 animate-fade-in" style={{ animationDelay: '500ms' }}>
-          <h2 className="text-lg font-semibold text-foreground px-1">Issues to fix</h2>
-          {result.issues.map(issue => (
-            <IssueCard key={issue.id} issue={issue} />
-          ))}
-        </div>
       </div>
 
       {/* Fixed bottom CTA */}
