@@ -522,8 +522,37 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           </div>
         </div>
 
-        {/* Competitor ranking */}
+        {/* What is SEO and GEO? */}
         <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '100ms' }}>
+          <h2 className="text-lg font-semibold text-foreground mb-4">What is SEO and GEO?</h2>
+          <div className="space-y-4">
+            <div className="p-4 bg-muted/50 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Search className="w-4 h-4 text-primary" />
+                </div>
+                <h3 className="font-medium text-foreground">SEO (Search Engine Optimization)</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                SEO is the practice of optimizing your website and online presence to rank higher in search engine results like Google. It helps potential guests find your hotel when searching for accommodations in your area.
+              </p>
+            </div>
+            <div className="p-4 bg-muted/50 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Globe className="w-4 h-4 text-accent" />
+                </div>
+                <h3 className="font-medium text-foreground">GEO (Generative Engine Optimization)</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                GEO is the emerging practice of optimizing your content to appear in AI-powered search results and chatbots like ChatGPT, Perplexity, and Google AI Overviews. As more travelers use AI assistants to plan trips, GEO ensures your hotel gets recommended.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Competitor ranking */}
+        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '150ms' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">
               You're ranking below {competitors.filter(c => c.rank < 4).length} competitors
