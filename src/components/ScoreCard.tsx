@@ -5,10 +5,26 @@ import IssueCard from './IssueCard';
 import CompetitorList from './CompetitorList';
 import SearchRankingItem from './SearchRankingItem';
 import AiRecommendations from './AiRecommendations';
+import WebsiteScanResults from './WebsiteScanResults';
 import { Button } from '@/components/ui/button';
-import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy } from 'lucide-react';
+import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
+interface WebsiteIssue {
+  id: string;
+  category: 'seo' | 'performance' | 'accessibility' | 'content' | 'mobile' | 'security';
+  title: string;
+  description: string;
+  severity: 'critical' | 'warning' | 'info';
+}
+
+interface WebsiteScanData {
+  totalItemsScanned: number;
+  itemsNeedingAttention: number;
+  issues: WebsiteIssue[];
+  scannedCategories: string[];
+}
 
 interface ScoreCardProps {
   result: ScanResult;
@@ -24,6 +40,65 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   const [competitors, setCompetitors] = useState<Competitor[]>(result.competitors);
   const [isRegeneratingCompetitors, setIsRegeneratingCompetitors] = useState(false);
   const [revenueEstimate, setRevenueEstimate] = useState<number | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [websiteScanData, setWebsiteScanData] = useState<WebsiteScanData | null>(null);
+
+  const scanWebsite = async () => {
+    setIsScanning(true);
+    setWebsiteScanData(null);
+    
+    try {
+      // Generate a website URL from the hotel name
+      const websiteUrl = `${result.hotel.name.toLowerCase().replace(/\s+/g, '')}.com`;
+      
+      const { data, error } = await supabase.functions.invoke('scan-website', {
+        body: { 
+          websiteUrl,
+          hotelName: result.hotel.name
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        if (data.error.includes('Rate limit')) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a few moments.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+
+      if (data?.success) {
+        setWebsiteScanData({
+          totalItemsScanned: data.totalItemsScanned,
+          itemsNeedingAttention: data.itemsNeedingAttention,
+          issues: data.issues,
+          scannedCategories: data.scannedCategories,
+        });
+        
+        toast({
+          title: "Website scan complete",
+          description: `Found ${data.itemsNeedingAttention} items that need attention.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error scanning website:', error);
+      toast({
+        title: "Failed to scan website",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const regenerateCompetitors = async () => {
     setIsRegeneratingCompetitors(true);
@@ -374,31 +449,65 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* AI Fix CTA */}
-        <div className="bg-gradient-to-r from-muted to-secondary rounded-2xl p-6 text-center animate-fade-in" style={{ animationDelay: '200ms' }}>
+        <div className="bg-gradient-to-r from-muted to-secondary rounded-2xl p-6 animate-fade-in" style={{ animationDelay: '200ms' }}>
           <div className="flex items-center justify-center gap-2 text-muted-foreground mb-2">
-            <Sparkles className="w-4 h-4" />
+            <ScanLine className="w-4 h-4" />
             <span className="text-sm">AI Optimization</span>
           </div>
-          <h3 className="text-xl font-semibold text-foreground mb-2">
-            Fix your website in 35 seconds using AI
-          </h3>
-          <Button 
-            onClick={fetchAiRecommendations}
-            disabled={isLoadingAi}
-            className="mt-4 bg-primary text-primary-foreground px-8 py-6 text-lg rounded-xl"
-          >
-            {isLoadingAi ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              'Get started'
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground mt-3">
-            We won't publish the new website without your confirmation.
-          </p>
+          
+          {!websiteScanData && !isScanning && (
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                Fix your website in 35 seconds using AI
+              </h3>
+              <Button 
+                onClick={scanWebsite}
+                disabled={isScanning}
+                className="mt-4 bg-primary text-primary-foreground px-8 py-6 text-lg rounded-xl"
+              >
+                <ScanLine className="w-5 h-5 mr-2" />
+                Get started
+              </Button>
+              <p className="text-xs text-muted-foreground mt-3">
+                We'll scan your website and identify items that need attention.
+              </p>
+            </div>
+          )}
+
+          {isScanning && (
+            <div className="text-center py-8">
+              <div className="relative inline-block">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+                <div className="absolute -inset-2 rounded-2xl bg-primary/10 animate-pulse" />
+              </div>
+              <p className="text-foreground mt-4 font-medium">Scanning your website...</p>
+              <p className="text-xs text-muted-foreground mt-1">Analyzing SEO, performance, accessibility, and more</p>
+            </div>
+          )}
+
+          {websiteScanData && (
+            <div className="mt-4">
+              <WebsiteScanResults 
+                totalItemsScanned={websiteScanData.totalItemsScanned}
+                itemsNeedingAttention={websiteScanData.itemsNeedingAttention}
+                issues={websiteScanData.issues}
+                scannedCategories={websiteScanData.scannedCategories}
+              />
+              <div className="mt-4 pt-4 border-t border-border flex justify-center">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={scanWebsite}
+                  disabled={isScanning}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isScanning ? 'animate-spin' : ''}`} />
+                  Scan Again
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Search rankings */}
