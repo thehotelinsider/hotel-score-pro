@@ -137,7 +137,7 @@ const WebsiteScanResults = ({
 
       {/* Issues List */}
       {issues.length > 0 && (
-        <div className="space-y-2 max-h-64 overflow-y-auto">
+        <div className="space-y-2">
           <h4 className="text-sm font-medium text-foreground">Issues Found:</h4>
           {issues.map((issue) => {
             const CategoryIcon = categoryIcons[issue.category] || Globe;
