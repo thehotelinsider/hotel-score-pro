@@ -182,7 +182,11 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
     
     saveCurrentSection();
     
-    return sections;
+    // Filter out Revenue Impact Estimate section
+    return sections.filter(section => {
+      const lowerTitle = section.title.toLowerCase();
+      return !(lowerTitle.includes('revenue') && (lowerTitle.includes('impact') || lowerTitle.includes('estimate')));
+    });
   }, [recommendations]);
 
   // Extract and report revenue estimate when recommendations change
