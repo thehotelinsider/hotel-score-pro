@@ -726,6 +726,9 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           </div>
           <GoogleBusinessProfile 
             hotelName={result.hotel.name}
+            hotelCity={result.hotel.city}
+            hotelState={result.hotel.state}
+            hotelCountry={result.hotel.country}
             rating={result.hotel.rating}
             reviewCount={result.hotel.reviewCount}
           />
