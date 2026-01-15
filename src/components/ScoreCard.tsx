@@ -9,8 +9,9 @@ import WebsiteScanResults from './WebsiteScanResults';
 import SocialPlatformPresence from './SocialPlatformPresence';
 import GoogleMapRankings, { MapRanking } from './GoogleMapRankings';
 import OTAReviewPerformance from './OTAReviewPerformance';
+import { GoogleBusinessProfile } from './GoogleBusinessProfile';
 import { Button } from '@/components/ui/button';
-import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine } from 'lucide-react';
+import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -710,6 +711,24 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Google Business Profile */}
+        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '250ms' }}>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent">
+              <MapPin className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Google Business Profile</h3>
+              <p className="text-xs text-muted-foreground">Optimize your local presence</p>
+            </div>
+          </div>
+          <GoogleBusinessProfile 
+            hotelName={result.hotel.name}
+            rating={result.hotel.rating}
+            reviewCount={result.hotel.reviewCount}
+          />
         </div>
 
         {/* Search rankings */}
