@@ -518,7 +518,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
                 This is how you're doing online
               </h2>
               <p className="text-sm text-muted-foreground">
-                Where you are showing up when customers search your hotel, next to your competitors
+                Where your hotel is showing up in customers in customer search inquires, next to your competitors
               </p>
             </div>
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
