@@ -11,6 +11,7 @@ interface WebsiteIssue {
   title: string;
   description: string;
   severity: 'critical' | 'warning' | 'info';
+  action: string;
 }
 
 interface ScanResult {
@@ -138,13 +139,14 @@ Return a valid JSON object with this exact structure:
       "id": "unique_id",
       "category": "seo|performance|accessibility|content|mobile|security",
       "title": "Short issue title",
-      "description": "Detailed description of the issue and how to fix it",
-      "severity": "critical|warning|info"
+      "description": "Detailed description of the issue",
+      "severity": "critical|warning|info",
+      "action": "Specific actionable step to fix this issue"
     }
   ]
 }
 
-Be thorough but realistic. Only report actual issues found in the content. Prioritize issues that would impact booking conversions.`;
+Be thorough but realistic. Only report actual issues found in the content. Prioritize issues that would impact booking conversions. For each issue, provide a clear, actionable step in the "action" field.`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -207,14 +209,16 @@ Be thorough but realistic. Only report actual issues found in the content. Prior
             category: 'seo',
             title: 'Meta Description Missing or Incomplete',
             description: 'The website lacks a compelling meta description that could improve click-through rates from search results.',
-            severity: 'warning'
+            severity: 'warning',
+            action: 'Add a unique, keyword-rich meta description between 150-160 characters that highlights your hotel\'s unique value proposition.'
           },
           {
             id: 'booking_cta_weak',
             category: 'content',
             title: 'Booking Call-to-Action Not Prominent',
             description: 'The booking button or reservation link should be more visible above the fold.',
-            severity: 'critical'
+            severity: 'critical',
+            action: 'Place a contrasting "Book Now" button in the header and hero section, ensuring it\'s visible without scrolling.'
           }
         ]
       };

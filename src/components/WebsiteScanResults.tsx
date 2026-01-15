@@ -6,6 +6,7 @@ interface WebsiteIssue {
   title: string;
   description: string;
   severity: 'critical' | 'warning' | 'info';
+  action?: string;
 }
 
 interface WebsiteScanResultsProps {
@@ -158,6 +159,14 @@ const WebsiteScanResults = ({
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{issue.description}</p>
+                    {issue.action && (
+                      <div className="mt-2 pt-2 border-t border-border/50">
+                        <p className="text-xs">
+                          <span className="font-semibold text-primary">Action:</span>{' '}
+                          <span className="text-foreground">{issue.action}</span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
