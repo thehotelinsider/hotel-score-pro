@@ -23,7 +23,7 @@ const CompetitorList = ({ competitors, currentHotelName, currentHotelRank }: Com
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground mb-2">
-        Top 5 competitors within 10 miles
+        Where you are showing up when customers search your hotel, next to your competitors
       </p>
       {allEntries.map((entry) => {
         const isCurrent = 'isCurrent' in entry && entry.isCurrent;
