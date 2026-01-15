@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ScanResult, Competitor, SocialPlatformMetrics } from '@/types/hotel';
+import { ScanResult, Competitor, SocialPlatformMetrics, OTAReviewPlatformMetrics } from '@/types/hotel';
 import ScoreCircle from './ScoreCircle';
 import IssueCard from './IssueCard';
 import CompetitorList from './CompetitorList';
@@ -8,6 +8,7 @@ import AiRecommendations from './AiRecommendations';
 import WebsiteScanResults from './WebsiteScanResults';
 import SocialPlatformPresence from './SocialPlatformPresence';
 import GoogleMapRankings, { MapRanking } from './GoogleMapRankings';
+import OTAReviewPerformance from './OTAReviewPerformance';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -48,6 +49,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   const [isLoadingSocial, setIsLoadingSocial] = useState(false);
   const [mapRankings, setMapRankings] = useState<MapRanking[]>([]);
   const [isLoadingMapRankings, setIsLoadingMapRankings] = useState(false);
+  const [otaReviewPlatforms, setOtaReviewPlatforms] = useState<OTAReviewPlatformMetrics[]>([]);
+  const [isLoadingOtaReviews, setIsLoadingOtaReviews] = useState(false);
 
   const scanWebsite = async () => {
     setIsScanning(true);
@@ -198,6 +201,52 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
     }
   };
 
+  const fetchOtaReviews = async () => {
+    setIsLoadingOtaReviews(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-ota-reviews', {
+        body: { 
+          hotel: result.hotel,
+          competitors: competitors.slice(0, 5)
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        if (data.error.includes('Rate limit')) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a few moments.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+
+      if (data?.success && data.platforms) {
+        setOtaReviewPlatforms(data.platforms);
+        toast({
+          title: "OTA & Review analysis complete",
+          description: `Analyzed ${data.platforms.length} platforms.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing OTA and review platforms:', error);
+      toast({
+        title: "Failed to analyze OTA & review platforms",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingOtaReviews(false);
+    }
+  };
+
   // Auto-fetch social presence when component mounts
   useEffect(() => {
     if (competitors.length > 0 && socialPlatforms.length === 0 && !isLoadingSocial) {
@@ -209,6 +258,13 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   useEffect(() => {
     if (competitors.length > 0 && mapRankings.length === 0 && !isLoadingMapRankings) {
       fetchMapRankings();
+    }
+  }, [competitors]);
+
+  // Auto-fetch OTA and review platforms when component mounts
+  useEffect(() => {
+    if (competitors.length > 0 && otaReviewPlatforms.length === 0 && !isLoadingOtaReviews) {
+      fetchOtaReviews();
     }
   }, [competitors]);
 
@@ -661,6 +717,16 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
               <SearchRankingItem key={index} ranking={ranking} />
             ))}
           </div>
+        </div>
+
+        {/* OTA and Review Website Performance */}
+        <div className="animate-fade-in" style={{ animationDelay: '350ms' }}>
+          <OTAReviewPerformance
+            platforms={otaReviewPlatforms}
+            isLoading={isLoadingOtaReviews}
+            onRefresh={fetchOtaReviews}
+            hotelName={result.hotel.name}
+          />
         </div>
 
         {/* Social Platform Presence */}
