@@ -1,5 +1,10 @@
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Star, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Star, ExternalLink, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ProfileItem {
   name: string;
@@ -92,11 +97,11 @@ const getStatusIcon = (status: ProfileItem['status']) => {
 const getStatusBg = (status: ProfileItem['status']) => {
   switch (status) {
     case 'complete':
-      return 'bg-green-500/10';
+      return 'bg-green-500/10 hover:bg-green-500/15';
     case 'incomplete':
-      return 'bg-red-500/10';
+      return 'bg-red-500/10 hover:bg-red-500/15';
     case 'needs_improvement':
-      return 'bg-amber-500/10';
+      return 'bg-amber-500/10 hover:bg-amber-500/15';
   }
 };
 
@@ -109,8 +114,6 @@ export const GoogleBusinessProfile = ({
   const completeCount = profileItems.filter(item => item.status === 'complete').length;
   const totalCount = profileItems.length;
   const score = Math.round((completeCount / totalCount) * 20);
-  
-  const incompleteItems = profileItems.filter(item => item.status !== 'complete');
   
   return (
     <div className="space-y-4">
@@ -135,55 +138,44 @@ export const GoogleBusinessProfile = ({
         </div>
       </div>
 
-      {/* Profile Items Checklist */}
+      {/* Profile Items Checklist with Collapsible Actions */}
       <div className="space-y-2">
         <h4 className="text-sm font-medium text-muted-foreground px-1">Profile Content</h4>
         <div className="space-y-2">
           {profileItems.map((item, index) => (
-            <div 
-              key={index}
-              className={`flex items-start gap-3 p-3 rounded-xl ${getStatusBg(item.status)}`}
-            >
-              <div className="mt-0.5">
-                {getStatusIcon(item.status)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-foreground">{item.name}</span>
-                  {item.value && (
-                    <span className="text-xs text-muted-foreground truncate">{item.value}</span>
-                  )}
+            <Collapsible key={index}>
+              <CollapsibleTrigger asChild>
+                <div 
+                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${getStatusBg(item.status)}`}
+                >
+                  <div className="flex-shrink-0">
+                    {getStatusIcon(item.status)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-foreground">{item.name}</span>
+                      {item.value && (
+                        <span className="text-xs text-muted-foreground truncate">{item.value}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </div>
-              </div>
-            </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="ml-8 mt-1 p-3 bg-muted/30 rounded-lg border-l-2 border-primary/30">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full flex-shrink-0">
+                      Action
+                    </span>
+                    <p className="text-sm text-muted-foreground">{item.action}</p>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           ))}
         </div>
       </div>
-
-      {/* Action Items */}
-      {incompleteItems.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground px-1">Recommended Actions</h4>
-          <div className="space-y-2">
-            {incompleteItems.slice(0, 5).map((item, index) => (
-              <div 
-                key={index}
-                className="p-3 bg-muted/30 rounded-xl border border-border"
-              >
-                <div className="flex items-start gap-2">
-                  <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                    Action
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{item.action}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* CTA */}
       <div className="pt-2">
