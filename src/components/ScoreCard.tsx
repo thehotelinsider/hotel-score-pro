@@ -618,12 +618,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
 
         {/* AI Fix CTA */}
         <div className="bg-gradient-to-r from-muted to-secondary rounded-2xl p-6 animate-fade-in" style={{ animationDelay: '200ms' }}>
-          <div className="flex flex-col items-center justify-center mb-2">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <ScanLine className="w-4 h-4" />
-              <span className="text-sm">AI Website Optimization</span>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent">
+              <ScanLine className="w-5 h-5 text-primary-foreground" />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">See what's wrong and how to improve</p>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">AI Website Optimization</h3>
+              <p className="text-xs text-muted-foreground">See what's wrong and how to improve</p>
+            </div>
           </div>
           
           {!websiteScanData && !isScanning && (
