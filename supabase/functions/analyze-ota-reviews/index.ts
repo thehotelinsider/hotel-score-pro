@@ -67,7 +67,7 @@ serve(async (req) => {
 
     const totalCompetitors = (competitors?.length || 0) + 1; // Including the hotel itself
 
-    const systemPrompt = `You are an expert hotel industry analyst specializing in OTA (Online Travel Agencies) and review platforms. 
+const systemPrompt = `You are an expert hotel industry analyst specializing in OTA (Online Travel Agencies) and review platforms. 
 Your task is to generate realistic performance metrics for a hotel across various review and OTA platforms, comparing them against competitors.
 
 IMPORTANT: Return ONLY a valid JSON array, no markdown, no code blocks, no explanations.
@@ -76,13 +76,22 @@ The platforms to analyze are:
 - Review Platforms: TripAdvisor, Google Reviews, Yelp, Facebook Reviews
 - OTA Platforms: Expedia, Booking.com, Agoda
 
-For each platform, generate realistic metrics based on the hotel's rating and review count, simulating what their actual presence would look like.`;
+CRITICAL - Review Count Guidelines (these are typical ranges for established hotels):
+- Google Reviews: Usually the highest - typically 500-5000 reviews for established hotels
+- TripAdvisor: Second highest - typically 300-3000 reviews
+- Booking.com: Third - typically 200-2000 verified guest reviews
+- Expedia: Moderate - typically 100-1500 reviews
+- Yelp: Lower for hotels - typically 50-500 reviews
+- Facebook: Variable - typically 50-400 recommendations
+- Agoda: Similar to Expedia - typically 100-1000 reviews
+
+Scale these numbers appropriately based on the hotel's total review count - a hotel with 1000 total reviews should have proportionally more on each platform than one with 100 reviews.`;
 
     const userPrompt = `Generate OTA and review platform performance data for this hotel:
 
 Hotel: ${hotel.name}
 Location: ${hotel.city}, ${hotel.state}, ${hotel.country}
-Current Rating: ${hotel.rating}/5 (${hotel.reviewCount} reviews)
+Current Rating: ${hotel.rating}/5 (${hotel.reviewCount} total reviews across all platforms)
 
 Competitors (${competitors?.length || 0}):
 ${competitors?.map(c => `- ${c.name} (Rating: ${c.rating})`).join('\n') || 'No competitors provided'}
@@ -92,18 +101,18 @@ Generate a JSON array with exactly 7 platform objects. Each object must have thi
   "platform": "tripadvisor" | "google_reviews" | "yelp" | "facebook_reviews" | "expedia" | "booking" | "agoda",
   "platformType": "review" | "ota",
   "hotelMetrics": {
-    "rating": <number 1-5>,
-    "reviewCount": <number>,
+    "rating": <number 1-5, typically within 0.3 of overall rating>,
+    "reviewCount": <number - MUST be realistic for the platform, see guidelines above>,
     "responseRate": <number 0-100>,
     "averageResponseTime": "<string like 'Within 24 hours'>",
     "recentReviewSentiment": "positive" | "mixed" | "negative",
     "listingCompleteness": <number 0-100>,
-    "lastReviewDate": "<ISO date string>",
-    "bookingRank": <number, only for OTA platforms>
+    "lastReviewDate": "<ISO date string within last 30 days>",
+    "bookingRank": <number 1-50, only for OTA platforms>
   },
   "competitorAverage": {
     "rating": <number>,
-    "reviewCount": <number>,
+    "reviewCount": <number - should be similar scale to hotel's count>,
     "responseRate": <number>,
     "listingCompleteness": <number>
   },
@@ -113,11 +122,11 @@ Generate a JSON array with exactly 7 platform objects. Each object must have thi
   "recommendation": "<specific actionable recommendation>"
 }
 
-Make the data realistic:
-- Higher rated hotels should generally perform better
-- Review counts should vary by platform (Google typically highest)
-- OTAs should include bookingRank
-- Recommendations should be specific and actionable
+IMPORTANT - Make data accurate and realistic:
+- Google Reviews should have the most reviews, followed by TripAdvisor
+- Review counts should be proportional to the hotel's overall review count (${hotel.reviewCount})
+- OTA platforms (booking, expedia, agoda) typically have fewer reviews than review platforms
+- All review counts should be reasonable whole numbers
 - Status should reflect rank (1-2: leading, 3-4: competitive, 5+: behind)
 
 Return ONLY the JSON array, nothing else.`;
@@ -203,26 +212,33 @@ Return ONLY the JSON array, nothing else.`;
 
 function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReviewPlatformMetrics[] {
   const baseRating = hotel.rating || 4.0;
-  const baseReviews = hotel.reviewCount || 100;
+  const baseReviews = hotel.reviewCount || 500;
   
-  const platforms: Array<{
+  // Platform-specific review count multipliers (realistic distribution)
+  // Google Reviews typically has the most, followed by TripAdvisor
+  const platformConfigs: Array<{
     platform: OTAReviewPlatformMetrics['platform'];
     platformType: 'review' | 'ota';
+    reviewMultiplierMin: number;
+    reviewMultiplierMax: number;
   }> = [
-    { platform: 'google_reviews', platformType: 'review' },
-    { platform: 'tripadvisor', platformType: 'review' },
-    { platform: 'yelp', platformType: 'review' },
-    { platform: 'facebook_reviews', platformType: 'review' },
-    { platform: 'booking', platformType: 'ota' },
-    { platform: 'expedia', platformType: 'ota' },
-    { platform: 'agoda', platformType: 'ota' },
+    { platform: 'google_reviews', platformType: 'review', reviewMultiplierMin: 0.8, reviewMultiplierMax: 1.2 },
+    { platform: 'tripadvisor', platformType: 'review', reviewMultiplierMin: 0.5, reviewMultiplierMax: 0.9 },
+    { platform: 'booking', platformType: 'ota', reviewMultiplierMin: 0.3, reviewMultiplierMax: 0.6 },
+    { platform: 'expedia', platformType: 'ota', reviewMultiplierMin: 0.15, reviewMultiplierMax: 0.35 },
+    { platform: 'yelp', platformType: 'review', reviewMultiplierMin: 0.08, reviewMultiplierMax: 0.2 },
+    { platform: 'facebook_reviews', platformType: 'review', reviewMultiplierMin: 0.05, reviewMultiplierMax: 0.15 },
+    { platform: 'agoda', platformType: 'ota', reviewMultiplierMin: 0.1, reviewMultiplierMax: 0.25 },
   ];
 
-  return platforms.map((p, index) => {
+  return platformConfigs.map((config, index) => {
     const ratingVariation = (Math.random() - 0.5) * 0.4;
     const rating = Math.min(5, Math.max(1, baseRating + ratingVariation));
-    const reviewMultiplier = p.platformType === 'review' ? (Math.random() * 0.5 + 0.3) : (Math.random() * 0.3 + 0.1);
-    const reviewCount = Math.round(baseReviews * reviewMultiplier);
+    
+    // Calculate review count using platform-specific multipliers
+    const multiplier = config.reviewMultiplierMin + Math.random() * (config.reviewMultiplierMax - config.reviewMultiplierMin);
+    const reviewCount = Math.max(10, Math.round(baseReviews * multiplier));
+    
     const rank = Math.min(totalCompetitors, Math.floor(Math.random() * totalCompetitors) + 1);
     
     let status: OTAReviewPlatformMetrics['status'];
@@ -230,9 +246,12 @@ function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReview
     else if (rank <= Math.ceil(totalCompetitors / 2)) status = 'competitive';
     else status = 'behind';
 
+    // Calculate competitor average with slight variation
+    const competitorReviewMultiplier = 0.8 + Math.random() * 0.4;
+
     return {
-      platform: p.platform,
-      platformType: p.platformType,
+      platform: config.platform,
+      platformType: config.platformType,
       hotelMetrics: {
         rating: Number(rating.toFixed(1)),
         reviewCount,
@@ -241,18 +260,18 @@ function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReview
         recentReviewSentiment: (['positive', 'mixed', 'negative'] as const)[rating >= 4 ? 0 : rating >= 3 ? 1 : 2],
         listingCompleteness: Math.round(Math.random() * 30 + 70),
         lastReviewDate: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        ...(p.platformType === 'ota' && { bookingRank: Math.floor(Math.random() * 20) + 1 }),
+        ...(config.platformType === 'ota' && { bookingRank: Math.floor(Math.random() * 20) + 1 }),
       },
       competitorAverage: {
         rating: Number((baseRating - 0.1 + Math.random() * 0.2).toFixed(1)),
-        reviewCount: Math.round(reviewCount * (0.8 + Math.random() * 0.4)),
+        reviewCount: Math.round(reviewCount * competitorReviewMultiplier),
         responseRate: Math.round(Math.random() * 30 + 50),
         listingCompleteness: Math.round(Math.random() * 20 + 70),
       },
       rank,
       totalCompetitors,
       status,
-      recommendation: getRecommendation(p.platform, status),
+      recommendation: getRecommendation(config.platform, status),
     };
   });
 }
