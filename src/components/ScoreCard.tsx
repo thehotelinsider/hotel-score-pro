@@ -551,18 +551,6 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           </div>
         </div>
 
-        {/* Summary stats */}
-        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '400ms' }}>
-          <h2 className="text-2xl font-display font-bold text-foreground">
-            32 things reviewed,
-          </h2>
-          <h2 className="text-2xl font-display font-bold text-warning">
-            9 need work
-          </h2>
-          <p className="text-muted-foreground mt-2">
-            See what's wrong and how to improve
-          </p>
-        </div>
 
         {/* All issues */}
         <div className="space-y-3 animate-fade-in" style={{ animationDelay: '500ms' }}>
