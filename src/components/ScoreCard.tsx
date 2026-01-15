@@ -7,6 +7,7 @@ import SearchRankingItem from './SearchRankingItem';
 import AiRecommendations from './AiRecommendations';
 import WebsiteScanResults from './WebsiteScanResults';
 import SocialPlatformPresence from './SocialPlatformPresence';
+import GoogleMapRankings, { MapRanking } from './GoogleMapRankings';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +46,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
   const [websiteScanData, setWebsiteScanData] = useState<WebsiteScanData | null>(null);
   const [socialPlatforms, setSocialPlatforms] = useState<SocialPlatformMetrics[]>([]);
   const [isLoadingSocial, setIsLoadingSocial] = useState(false);
+  const [mapRankings, setMapRankings] = useState<MapRanking[]>([]);
+  const [isLoadingMapRankings, setIsLoadingMapRankings] = useState(false);
 
   const scanWebsite = async () => {
     setIsScanning(true);
@@ -149,10 +152,63 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
     }
   };
 
+  const fetchMapRankings = async () => {
+    setIsLoadingMapRankings(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-map-rankings', {
+        body: { 
+          hotel: result.hotel,
+          competitors: competitors.slice(0, 10)
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.error) {
+        if (data.error.includes('Rate limit')) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a few moments.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
+
+      if (data?.success && data.rankings) {
+        setMapRankings(data.rankings);
+        toast({
+          title: "Map rankings loaded",
+          description: `Found your position among ${data.rankings.length} nearby hotels.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching map rankings:', error);
+      toast({
+        title: "Failed to load map rankings",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMapRankings(false);
+    }
+  };
+
   // Auto-fetch social presence when component mounts
   useEffect(() => {
     if (competitors.length > 0 && socialPlatforms.length === 0 && !isLoadingSocial) {
       fetchSocialPresence();
+    }
+  }, [competitors]);
+
+  // Auto-fetch map rankings when component mounts
+  useEffect(() => {
+    if (competitors.length > 0 && mapRankings.length === 0 && !isLoadingMapRankings) {
+      fetchMapRankings();
     }
   }, [competitors]);
 
@@ -613,6 +669,16 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
             platforms={socialPlatforms}
             isLoading={isLoadingSocial}
             onRefresh={fetchSocialPresence}
+            hotelName={result.hotel.name}
+          />
+        </div>
+
+        {/* Google Map Results */}
+        <div className="animate-fade-in" style={{ animationDelay: '500ms' }}>
+          <GoogleMapRankings
+            rankings={mapRankings}
+            isLoading={isLoadingMapRankings}
+            onRefresh={fetchMapRankings}
             hotelName={result.hotel.name}
           />
         </div>
