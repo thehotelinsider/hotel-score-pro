@@ -34,10 +34,17 @@ const SearchRankingItem = ({ ranking, hotelName = 'your hotel' }: SearchRankingI
       <CollapsibleTrigger asChild>
         <div className="flex items-center justify-between py-4 border-b border-border last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors -mx-2 px-2 rounded-lg">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-              <span className="text-lg font-bold text-muted-foreground">G</span>
+            <div
+              className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                isUnranked
+                  ? 'bg-danger/10 text-danger'
+                  : ranking.position === 1
+                    ? 'bg-success/10 text-success'
+                    : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              <span className="text-lg font-bold">G</span>
             </div>
-            
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground truncate">{ranking.keyword}</p>
               <div className="flex items-center gap-2 mt-0.5">
