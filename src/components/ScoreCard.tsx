@@ -630,7 +630,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">
-                This is how you're doing online
+                Online Customer Search Inquiries
               </h2>
               <p className="text-sm text-muted-foreground">
                 Where your hotel is showing up in customer search inquires, next to your competitors
