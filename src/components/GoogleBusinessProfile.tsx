@@ -1,10 +1,13 @@
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Star, ExternalLink, ChevronDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Star, ExternalLink, ChevronDown, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProfileItem {
   name: string;
@@ -15,73 +18,12 @@ interface ProfileItem {
 
 interface GoogleBusinessProfileProps {
   hotelName: string;
+  hotelCity?: string;
+  hotelState?: string;
+  hotelCountry?: string;
   rating?: number;
   reviewCount?: number;
-  profileItems?: ProfileItem[];
 }
-
-const defaultProfileItems: ProfileItem[] = [
-  { 
-    name: "First-party website", 
-    status: "complete", 
-    value: "Connected",
-    action: "Ensure your website URL is up to date"
-  },
-  { 
-    name: "Business description", 
-    status: "needs_improvement", 
-    value: "Missing keywords",
-    action: "Add relevant keywords like 'boutique hotel', 'luxury accommodation' to your description"
-  },
-  { 
-    name: "Business hours", 
-    status: "complete", 
-    value: "24/7 Front Desk",
-    action: "Keep hours updated for holidays and special events"
-  },
-  { 
-    name: "Phone number", 
-    status: "complete", 
-    value: "Verified",
-    action: "Ensure phone number is always answered"
-  },
-  { 
-    name: "Price range", 
-    status: "incomplete", 
-    value: "Not set",
-    action: "Add your price range to help guests understand your positioning"
-  },
-  { 
-    name: "Amenities", 
-    status: "needs_improvement", 
-    value: "8 of 15 added",
-    action: "Add all amenities like WiFi, parking, pool, gym to attract more guests"
-  },
-  { 
-    name: "Photos", 
-    status: "needs_improvement", 
-    value: "12 photos",
-    action: "Add at least 25+ high-quality photos of rooms, lobby, amenities, and exterior"
-  },
-  { 
-    name: "Google Posts", 
-    status: "incomplete", 
-    value: "No recent posts",
-    action: "Post weekly updates about events, promotions, or seasonal offerings"
-  },
-  { 
-    name: "Q&A section", 
-    status: "needs_improvement", 
-    value: "3 unanswered",
-    action: "Answer all questions promptly and add common FAQs proactively"
-  },
-  { 
-    name: "Review responses", 
-    status: "needs_improvement", 
-    value: "65% responded",
-    action: "Respond to all reviews within 24-48 hours, especially negative ones"
-  },
-];
 
 const getStatusIcon = (status: ProfileItem['status']) => {
   switch (status) {
@@ -107,14 +49,102 @@ const getStatusBg = (status: ProfileItem['status']) => {
 
 export const GoogleBusinessProfile = ({ 
   hotelName, 
-  rating = 4.2, 
-  reviewCount = 856,
-  profileItems = defaultProfileItems 
+  hotelCity,
+  hotelState,
+  hotelCountry,
+  rating: initialRating = 4.2, 
+  reviewCount: initialReviewCount = 856,
 }: GoogleBusinessProfileProps) => {
-  const completeCount = profileItems.filter(item => item.status === 'complete').length;
-  const totalCount = profileItems.length;
-  const score = Math.round((completeCount / totalCount) * 20);
-  
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [profileItems, setProfileItems] = useState<ProfileItem[]>([]);
+  const [rating, setRating] = useState(initialRating);
+  const [reviewCount, setReviewCount] = useState(initialReviewCount);
+  const [score, setScore] = useState(0);
+
+  const fetchGoogleBusinessData = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-google-business', {
+        body: {
+          hotelName,
+          hotelCity,
+          hotelState,
+          hotelCountry,
+          hotelRating: initialRating,
+          hotelReviewCount: initialReviewCount,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        if (data.error.includes('Rate limit')) {
+          toast({
+            title: "Rate limit exceeded",
+            description: "Please try again in a few moments.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw new Error(data.error);
+      }
+
+      setProfileItems(data.profileItems || []);
+      setRating(data.rating || initialRating);
+      setReviewCount(data.reviewCount || initialReviewCount);
+      setScore(data.score || 0);
+      setHasLoaded(true);
+
+    } catch (error) {
+      console.error("Error fetching Google Business data:", error);
+      toast({
+        title: "Analysis failed",
+        description: "Could not analyze Google Business Profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Auto-fetch on mount
+  useEffect(() => {
+    if (!hasLoaded && hotelName) {
+      fetchGoogleBusinessData();
+    }
+  }, [hotelName]);
+
+  if (!hasLoaded && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8">
+        <Button onClick={fetchGoogleBusinessData} disabled={isLoading}>
+          <MapPin className="w-4 h-4 mr-2" />
+          Analyze Google Business Profile
+        </Button>
+        <p className="text-xs text-muted-foreground mt-2">
+          Click to analyze your Google Business Profile
+        </p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+          <div className="absolute -inset-2 rounded-2xl bg-primary/10 animate-pulse" />
+        </div>
+        <p className="text-muted-foreground mt-4 font-medium">Analyzing Google Business Profile...</p>
+        <p className="text-xs text-muted-foreground mt-1">Using AI to gather insights</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Profile Header */}
@@ -126,9 +156,9 @@ export const GoogleBusinessProfile = ({
           <div>
             <h3 className="font-semibold text-foreground">{hotelName}</h3>
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-foreground">{rating}</span>
+              <span className="font-medium text-foreground">{rating?.toFixed(1)}</span>
               <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-              <span className="text-muted-foreground">{reviewCount.toLocaleString()} reviews</span>
+              <span className="text-muted-foreground">{reviewCount?.toLocaleString()} reviews</span>
             </div>
           </div>
         </div>
@@ -177,11 +207,20 @@ export const GoogleBusinessProfile = ({
         </div>
       </div>
 
-      {/* CTA */}
-      <div className="pt-2">
+      {/* Actions */}
+      <div className="pt-2 flex gap-2">
         <Button 
           variant="outline" 
-          className="w-full"
+          size="sm"
+          onClick={fetchGoogleBusinessData}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+        <Button 
+          variant="outline" 
+          className="flex-1"
           onClick={() => window.open('https://business.google.com', '_blank')}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
