@@ -631,7 +631,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           {!websiteScanData && !isScanning && (
             <div className="text-center">
               <h3 className="text-xl font-semibold text-foreground mb-2">
-                Fix your website in 35 seconds using AI
+                Fix your website in seconds using AI
               </h3>
               <Button 
                 onClick={scanWebsite}
