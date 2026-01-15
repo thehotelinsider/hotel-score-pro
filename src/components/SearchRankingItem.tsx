@@ -44,7 +44,9 @@ const SearchRankingItem = ({ ranking, hotelName = 'your hotel' }: SearchRankingI
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
                   isUnranked 
                     ? 'bg-danger/10 text-danger' 
-                    : 'bg-success/10 text-success'
+                    : ranking.position === 1
+                      ? 'bg-success/10 text-success'
+                      : 'bg-warning/10 text-warning'
                 }`}>
                   {isUnranked ? 'Unranked' : `${ranking.position}${getOrdinalSuffix(ranking.position as number)}`}
                 </span>
