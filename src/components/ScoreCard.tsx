@@ -10,6 +10,7 @@ import SocialPlatformPresence from './SocialPlatformPresence';
 import GoogleMapRankings, { MapRanking } from './GoogleMapRankings';
 import OTAReviewPerformance from './OTAReviewPerformance';
 import { GoogleBusinessProfile } from './GoogleBusinessProfile';
+import ContactSection from './ContactSection';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -802,21 +803,15 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           />
         </div>
 
+        {/* Contact Section - THE HOTEL INSIDER */}
+        <div className="animate-fade-in" style={{ animationDelay: '600ms' }}>
+          <ContactSection currentScore={result.score.overall} />
+        </div>
+
       </div>
 
-      {/* Fixed bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
-        <div className="max-w-2xl mx-auto">
-          <Button className="w-full bg-primary text-primary-foreground py-6 rounded-xl flex items-center justify-center gap-3">
-            <div className="flex -space-x-2">
-              <div className="w-6 h-6 rounded-full bg-accent border-2 border-primary" />
-              <div className="w-6 h-6 rounded-full bg-warning border-2 border-primary" />
-              <div className="w-6 h-6 rounded-full bg-success border-2 border-primary" />
-            </div>
-            <span className="font-medium">Book a consult</span>
-          </Button>
-        </div>
-      </div>
+      {/* Bottom padding to account for removed fixed CTA */}
+      <div className="h-8" />
     </div>
   );
 };
