@@ -64,10 +64,11 @@ Generate a realistic Google Business Profile analysis with profile items coverin
 5. Price range
 6. Amenities
 7. Social media links
-8. Photos
-9. Google Posts
-10. Q&A section
-11. Review responses
+8. Description includes relevant keywords
+9. Photos
+10. Google Posts
+11. Q&A section
+12. Review responses
 
 For each item, provide a realistic status (complete, incomplete, or needs_improvement), a current value, and an actionable recommendation.`;
 
