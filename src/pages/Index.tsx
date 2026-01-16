@@ -88,24 +88,24 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         <Header />
         
-        <main className="pt-32 px-4 pb-12">
+        <main className="pt-24 sm:pt-32 px-3 sm:px-4 pb-12">
           <div className="max-w-2xl mx-auto text-center">
             {/* Main headline */}
-            <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4 animate-fade-in">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-foreground mb-3 sm:mb-4 animate-fade-in px-2">
               Enter your hotel name and receive your Hotel Online Score Card
             </h1>
             
-            <p className="text-lg text-muted-foreground mb-12 animate-fade-in" style={{ animationDelay: '100ms' }}>
+            <p className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-12 animate-fade-in px-2" style={{ animationDelay: '100ms' }}>
               Scan your site in seconds and make sure your hotel is beating its competitors.
             </p>
 
             {/* Search input */}
-            <div className="relative z-[100] mb-12 animate-fade-in" style={{ animationDelay: '200ms' }}>
+            <div className="relative z-[100] mb-8 sm:mb-12 animate-fade-in" style={{ animationDelay: '200ms' }}>
               <SearchInput onSearch={handleSearch} />
             </div>
 
             {/* Question badges */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 animate-fade-in" style={{ animationDelay: '300ms' }}>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 animate-fade-in px-2" style={{ animationDelay: '300ms' }}>
               <QuestionBadge 
                 icon={Search} 
                 text="How's my Google SEO?" 

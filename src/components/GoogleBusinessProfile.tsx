@@ -146,59 +146,59 @@ export const GoogleBusinessProfile = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Profile Header */}
-      <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm border border-border">
-            <MapPin className="w-6 h-6 text-primary" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-muted/50 rounded-lg sm:rounded-xl">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-white flex items-center justify-center shadow-sm border border-border flex-shrink-0">
+            <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
           </div>
-          <div>
-            <h3 className="font-semibold text-foreground">{hotelName}</h3>
-            <div className="flex items-center gap-2 text-sm">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">{hotelName}</h3>
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
               <span className="font-medium text-foreground">{rating?.toFixed(1)}</span>
-              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+              <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-amber-400 text-amber-400" />
               <span className="text-muted-foreground">{reviewCount?.toLocaleString()} reviews</span>
             </div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-foreground">{score}/20</div>
-          <p className="text-xs text-muted-foreground">Profile Score</p>
+        <div className="text-left sm:text-right">
+          <div className="text-xl sm:text-2xl font-bold text-foreground">{score}/20</div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">Profile Score</p>
         </div>
       </div>
 
       {/* Profile Items Checklist with Collapsible Actions */}
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground px-1">Profile Content</h4>
-        <div className="space-y-2">
+        <h4 className="text-xs sm:text-sm font-medium text-muted-foreground px-1">Profile Content</h4>
+        <div className="space-y-1.5 sm:space-y-2">
           {profileItems.map((item, index) => (
             <Collapsible key={index}>
               <CollapsibleTrigger asChild>
                 <div 
-                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${getStatusBg(item.status)}`}
+                  className={`flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg sm:rounded-xl cursor-pointer transition-colors ${getStatusBg(item.status)}`}
                 >
                   <div className="flex-shrink-0">
                     {getStatusIcon(item.status)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground">{item.name}</span>
+                      <span className="font-medium text-sm sm:text-base text-foreground">{item.name}</span>
                       {item.value && (
-                        <span className="text-xs text-muted-foreground truncate">{item.value}</span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground truncate max-w-20 sm:max-w-none">{item.value}</span>
                       )}
                     </div>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                  <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0" />
                 </div>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <div className="ml-8 mt-1 p-3 bg-muted/30 rounded-lg border-l-2 border-primary/30">
+                <div className="ml-7 sm:ml-8 mt-1 p-2.5 sm:p-3 bg-muted/30 rounded-lg border-l-2 border-primary/30">
                   <div className="flex items-start gap-2">
-                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full flex-shrink-0">
+                    <span className="text-[10px] sm:text-xs font-semibold text-primary bg-primary/10 px-1.5 sm:px-2 py-0.5 rounded-full flex-shrink-0">
                       Action
                     </span>
-                    <p className="text-sm text-muted-foreground">{item.action}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">{item.action}</p>
                   </div>
                 </div>
               </CollapsibleContent>
@@ -208,12 +208,13 @@ export const GoogleBusinessProfile = ({
       </div>
 
       {/* Actions */}
-      <div className="pt-2 flex gap-2">
+      <div className="pt-2 flex flex-col sm:flex-row gap-2">
         <Button 
           variant="outline" 
           size="sm"
           onClick={fetchGoogleBusinessData}
           disabled={isLoading}
+          className="w-full sm:w-auto"
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
@@ -224,7 +225,7 @@ export const GoogleBusinessProfile = ({
           onClick={() => window.open('https://business.google.com', '_blank')}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
-          Manage Google Business Profile
+          <span className="text-xs sm:text-sm">Manage Google Business</span>
         </Button>
       </div>
     </div>

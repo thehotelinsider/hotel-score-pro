@@ -112,62 +112,62 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
   };
 
   return (
-    <div className="relative w-full max-w-2xl mx-auto">
-      <div className="relative bg-muted rounded-2xl shadow-sm border border-border overflow-hidden transition-shadow focus-within:shadow-lg focus-within:border-accent/50">
+    <div className="relative w-full max-w-2xl mx-auto px-1 sm:px-0">
+      <div className="relative bg-muted rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-hidden transition-shadow focus-within:shadow-lg focus-within:border-accent/50">
         <textarea
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Find your hotel (e.g., 'Marriott New York' or 'hotels in Miami')"
+          placeholder="Find your hotel (e.g., 'Marriott New York')"
           rows={2}
-          className="w-full px-6 py-5 pr-16 bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-lg"
+          className="w-full px-4 sm:px-6 py-4 sm:py-5 pr-14 sm:pr-16 bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-base sm:text-lg"
         />
         <button
           onClick={handleSubmit}
           disabled={suggestions.length === 0 || isSearching}
-          className="absolute right-4 bottom-4 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+          className="absolute right-3 sm:right-4 bottom-3 sm:bottom-4 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
         >
           {isSearching ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
           ) : (
-            <ArrowUp className="w-5 h-5" />
+            <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5" />
           )}
         </button>
       </div>
 
       {/* Loading indicator */}
       {isSearching && query.length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in">
-          <div className="px-5 py-4 flex items-center gap-3 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span>Searching for hotels...</span>
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-lg sm:rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in">
+          <div className="px-4 sm:px-5 py-3 sm:py-4 flex items-center gap-2 sm:gap-3 text-muted-foreground">
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+            <span className="text-sm sm:text-base">Searching for hotels...</span>
           </div>
         </div>
       )}
 
       {/* Suggestions dropdown */}
       {!isSearching && showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-[100] animate-fade-in max-h-80 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-lg sm:rounded-xl border border-border shadow-xl overflow-hidden z-[100] animate-fade-in max-h-64 sm:max-h-80 overflow-y-auto">
           {suggestions.map((hotel, index) => (
             <button
               key={hotel.id}
               onClick={() => handleSelectHotel(hotel)}
-              className={`w-full px-5 py-4 text-left flex items-start gap-3 transition-colors ${
+              className={`w-full px-4 sm:px-5 py-3 sm:py-4 text-left flex items-start gap-2 sm:gap-3 transition-colors ${
                 index === selectedIndex 
                   ? 'bg-muted' 
                   : 'hover:bg-muted/50'
               }`}
             >
-              <Search className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-start gap-2">
-                  <p className="font-medium text-foreground break-words">{hotel.name}</p>
+                  <p className="font-medium text-sm sm:text-base text-foreground break-words">{hotel.name}</p>
                   <span className="text-xs text-muted-foreground flex-shrink-0">
                     ★ {hotel.rating?.toFixed(1) || 'N/A'}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {hotel.address}, {hotel.city}, {hotel.state}
                 </p>
                 {hotel.priceLevel && (
@@ -181,8 +181,8 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
 
       {/* No results message */}
       {!isSearching && showSuggestions && suggestions.length === 0 && query.length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in">
-          <div className="px-5 py-4 text-center text-muted-foreground">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-lg sm:rounded-xl border border-border shadow-xl overflow-hidden z-50 animate-fade-in">
+          <div className="px-4 sm:px-5 py-3 sm:py-4 text-center text-sm sm:text-base text-muted-foreground">
             No hotels found. Try a different search term.
           </div>
         </div>

@@ -101,41 +101,41 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
   }
 
   return (
-    <div className="bg-gradient-to-br from-primary/5 via-background to-accent/5 rounded-2xl p-6 border border-primary/20 animate-fade-in">
+    <div className="bg-gradient-to-br from-primary/5 via-background to-accent/5 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-primary/20 animate-fade-in">
       {/* Header */}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent mb-4">
-          <Mail className="w-7 h-7 text-primary-foreground" />
+      <div className="text-center mb-4 sm:mb-6">
+        <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary to-accent mb-3 sm:mb-4">
+          <Mail className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
         </div>
-        <h2 className="text-xl font-bold text-foreground mb-2">
+        <h2 className="text-lg sm:text-xl font-bold text-foreground mb-2">
           Improve Your Hotel's Online Presence
         </h2>
-        <p className="text-muted-foreground text-sm max-w-md mx-auto">
+        <p className="text-muted-foreground text-xs sm:text-sm max-w-md mx-auto">
           Contact <span className="font-semibold text-foreground">THE HOTEL INSIDER</span> for a consultation 
           to get your Hotel Online Score Card to a <span className="font-bold text-success">95</span>
         </p>
       </div>
 
       {/* Score improvement visualization */}
-      <div className="flex items-center justify-center gap-4 mb-6 p-4 bg-muted/50 rounded-xl">
+      <div className="flex items-center justify-center gap-3 sm:gap-4 mb-4 sm:mb-6 p-3 sm:p-4 bg-muted/50 rounded-lg sm:rounded-xl">
         <div className="text-center">
-          <div className="text-2xl font-bold text-warning">{currentScore}</div>
-          <div className="text-xs text-muted-foreground">Current Score</div>
+          <div className="text-xl sm:text-2xl font-bold text-warning">{currentScore}</div>
+          <div className="text-[10px] sm:text-xs text-muted-foreground">Current Score</div>
         </div>
         <div className="flex items-center">
-          <div className="w-16 h-0.5 bg-gradient-to-r from-warning to-success" />
-          <div className="w-0 h-0 border-t-4 border-b-4 border-l-8 border-transparent border-l-success" />
+          <div className="w-10 sm:w-16 h-0.5 bg-gradient-to-r from-warning to-success" />
+          <div className="w-0 h-0 border-t-[5px] sm:border-t-4 border-b-[5px] sm:border-b-4 border-l-[6px] sm:border-l-8 border-transparent border-l-success" />
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-success">95</div>
-          <div className="text-xs text-muted-foreground">Target Score</div>
+          <div className="text-xl sm:text-2xl font-bold text-success">95</div>
+          <div className="text-[10px] sm:text-xs text-muted-foreground">Target Score</div>
         </div>
       </div>
 
       {/* Contact Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name" className="text-sm font-medium text-foreground">
+      <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label htmlFor="name" className="text-xs sm:text-sm font-medium text-foreground">
             Full Name <span className="text-destructive">*</span>
           </Label>
           <div className="relative">
@@ -146,14 +146,14 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
               placeholder="Enter your full name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="pl-10"
+              className="pl-10 text-sm"
               required
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm font-medium text-foreground">
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label htmlFor="email" className="text-xs sm:text-sm font-medium text-foreground">
             Email Address <span className="text-destructive">*</span>
           </Label>
           <div className="relative">
@@ -164,14 +164,14 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
               placeholder="Enter your email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="pl-10"
+              className="pl-10 text-sm"
               required
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="phone" className="text-sm font-medium text-foreground">
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label htmlFor="phone" className="text-xs sm:text-sm font-medium text-foreground">
             Phone Number <span className="text-destructive">*</span>
           </Label>
           <div className="relative">
@@ -182,7 +182,7 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
               placeholder="Enter your phone number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="pl-10"
+              className="pl-10 text-sm"
               required
             />
           </div>
@@ -191,22 +191,22 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground py-6 rounded-xl font-medium text-base hover:opacity-90 transition-opacity"
+          className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground py-5 sm:py-6 rounded-lg sm:rounded-xl font-medium text-sm sm:text-base hover:opacity-90 transition-opacity"
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
               Opening Email...
             </>
           ) : (
             <>
-              <Send className="w-5 h-5 mr-2" />
+              <Send className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
               Contact THE HOTEL INSIDER
             </>
           )}
         </Button>
 
-        <p className="text-xs text-center text-muted-foreground">
+        <p className="text-[10px] sm:text-xs text-center text-muted-foreground">
           By submitting, you'll be directed to email{' '}
           <a href="mailto:info@thehotelinsider.co" className="text-primary hover:underline">
             info@thehotelinsider.co
