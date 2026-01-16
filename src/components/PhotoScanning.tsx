@@ -43,44 +43,48 @@ const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos }: Photo
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-background">
-      {/* Scrolling photos container */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative w-full max-w-sm sm:max-w-md h-[500px] sm:h-[600px] overflow-hidden">
-          {/* Photos stack */}
-          <div className="absolute inset-0 flex flex-col gap-4 sm:gap-6 animate-slide-photos">
-            {[...photos, ...photos].map((photo, index) => (
-              <div
-                key={index}
-                className="relative mx-auto w-64 sm:w-80 h-44 sm:h-56 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl transform"
-                style={{
-                  transform: `rotate(${index % 2 === 0 ? 3 : -3}deg) scale(${0.95 + (index % 3) * 0.02})`,
-                }}
-              >
-                <img
-                  src={photo}
-                  alt="Hotel"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 border-4 border-white/20 rounded-xl sm:rounded-2xl" />
+      {/* Full-screen scrolling photos container */}
+      <div className="absolute inset-0">
+        {/* Photos stack - full width */}
+        <div className="absolute inset-0 flex flex-col animate-slide-photos">
+          {[...photos, ...photos].map((photo, index) => (
+            <div
+              key={index}
+              className="relative w-full h-[50vh] sm:h-[60vh] flex-shrink-0"
+            >
+              <img
+                src={photo}
+                alt="Hotel"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/20" />
+              
+              {/* Photo number indicator */}
+              <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm px-3 py-1 rounded-full text-white text-sm font-medium">
+                {(index % photos.length) + 1} / {photos.length}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
 
-          {/* Scan line effect */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div 
-              className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent shadow-lg animate-scan"
-              style={{ boxShadow: '0 0 20px 5px hsl(var(--accent) / 0.5)' }}
-            />
-          </div>
+        {/* Scan line effect */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div 
+            className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-accent to-transparent shadow-lg animate-scan"
+            style={{ boxShadow: '0 0 30px 8px hsl(var(--accent) / 0.6)' }}
+          />
+        </div>
 
-          {/* Reviews preview overlay */}
-          <div className="absolute bottom-4 left-3 right-3 sm:left-4 sm:right-4 bg-card/90 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 border border-border shadow-lg">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-muted animate-pulse" />
+        {/* Photo info overlay */}
+        <div className="absolute bottom-24 sm:bottom-32 left-4 right-4 sm:left-6 sm:right-6">
+          <div className="bg-card/90 backdrop-blur-md rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-border shadow-xl max-w-lg mx-auto">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-accent/20 flex items-center justify-center">
+                <Maximize2 className="w-5 h-5 sm:w-6 sm:h-6 text-accent" />
+              </div>
               <div className="flex-1">
-                <div className="h-2 w-16 sm:w-20 bg-muted rounded animate-pulse" />
-                <div className="h-2 w-24 sm:w-32 bg-muted rounded mt-1 animate-pulse" />
+                <div className="font-medium text-foreground text-base sm:text-lg">Analyzing hotel imagery</div>
+                <div className="text-xs sm:text-sm text-muted-foreground mt-0.5">Checking quality, composition & appeal</div>
               </div>
             </div>
           </div>
