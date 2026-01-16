@@ -344,7 +344,7 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
     return items;
   };
 
-  const formatContent = (content: string[]) => {
+  const formatContent = (content: string[], isExecutiveSummary: boolean = false) => {
     const structuredItems = parseStructuredContent(content);
     
     if (structuredItems.length === 0) {
@@ -371,17 +371,21 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
         key={index} 
         className="bg-card/50 rounded-lg p-4 border border-border/50 space-y-3"
       >
-        {/* The Issue */}
+        {/* The Issue - hide label for Executive Summary */}
         {item.issue && (
           <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <XCircle className="w-4 h-4 text-danger" />
-            </div>
+            {!isExecutiveSummary && (
+              <div className="flex-shrink-0 mt-0.5">
+                <XCircle className="w-4 h-4 text-danger" />
+              </div>
+            )}
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-danger">
-                The Issue
-              </span>
-              <p className="text-sm text-foreground mt-1">{item.issue.trim()}</p>
+              {!isExecutiveSummary && (
+                <span className="text-xs font-semibold uppercase tracking-wide text-danger">
+                  The Issue
+                </span>
+              )}
+              <p className={`text-sm text-foreground ${isExecutiveSummary ? '' : 'mt-1'}`}>{item.issue.trim()}</p>
             </div>
           </div>
         )}
@@ -482,7 +486,7 @@ const AiRecommendations = ({ recommendations, onRevenueEstimateExtracted }: AiRe
                     formatRevenueSection(section.content)
                   ) : (
                     <ul className="space-y-1">
-                      {formatContent(section.content)}
+                      {formatContent(section.content, section.title.toLowerCase().includes('executive') || section.title.toLowerCase().includes('summary'))}
                     </ul>
                   )}
                 </div>
