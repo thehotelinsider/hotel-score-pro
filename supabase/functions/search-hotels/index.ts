@@ -28,7 +28,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a hotel search assistant. Given a user's search query, generate realistic hotel listings that match their search. 
+    const systemPrompt = `You are a hotel search assistant simulating Google Business Profile data. Given a user's search query, generate realistic hotel listings with photos that would appear on their Google Business Profile.
     
 IMPORTANT: Return ONLY valid JSON with no additional text. The response must be a valid JSON object.
 
@@ -43,16 +43,34 @@ For each hotel, provide:
 - reviewCount: number of reviews (100-5000)
 - priceLevel: one of "$", "$$", "$$$", "$$$$", or "$$$$$"
 - description: a brief 1-2 sentence description
-- photos: an array of 6-8 realistic Unsplash hotel photo URLs. Use URLs like:
-  * https://images.unsplash.com/photo-1566073771259-6a8506099945 (hotel exterior)
-  * https://images.unsplash.com/photo-1582719508461-905c673771fd (hotel lobby)
-  * https://images.unsplash.com/photo-1590490360182-c33d57733427 (hotel room)
-  * https://images.unsplash.com/photo-1584132967334-10e028bd69f7 (hotel pool)
-  * https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9 (hotel suite)
-  * https://images.unsplash.com/photo-1564501049412-61c2a3083791 (hotel bathroom)
-  * https://images.unsplash.com/photo-1520250497591-112f2f40a3f4 (hotel beach/resort)
-  * https://images.unsplash.com/photo-1551882547-ff40c63fe5fa (hotel restaurant)
-  Mix these and add ?w=800&q=80 for optimized loading.
+- photos: an array of 6-8 UNIQUE Unsplash hotel photo URLs that would appear on a Google Business Profile. 
+  IMPORTANT: Use DIFFERENT photo IDs for each hotel. Choose from this expanded list and vary by hotel type:
+  
+  For Luxury/Resort Hotels:
+  * https://images.unsplash.com/photo-1566073771259-6a8506099945 (luxury exterior)
+  * https://images.unsplash.com/photo-1582719508461-905c673771fd (grand lobby)
+  * https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9 (luxury suite)
+  * https://images.unsplash.com/photo-1520250497591-112f2f40a3f4 (resort view)
+  * https://images.unsplash.com/photo-1584132967334-10e028bd69f7 (infinity pool)
+  * https://images.unsplash.com/photo-1540541338287-41700207dee6 (beach view)
+  * https://images.unsplash.com/photo-1578683010236-d716f9a3f461 (spa)
+  
+  For Business Hotels:
+  * https://images.unsplash.com/photo-1564501049412-61c2a3083791 (modern room)
+  * https://images.unsplash.com/photo-1590490360182-c33d57733427 (business room)
+  * https://images.unsplash.com/photo-1551882547-ff40c63fe5fa (restaurant)
+  * https://images.unsplash.com/photo-1568084680786-a84f91d1153c (conference room)
+  * https://images.unsplash.com/photo-1549294413-26f195200c16 (gym)
+  * https://images.unsplash.com/photo-1618773928121-c32242e63f39 (modern bathroom)
+  
+  For Boutique Hotels:
+  * https://images.unsplash.com/photo-1596394516093-501ba68a0ba6 (boutique exterior)
+  * https://images.unsplash.com/photo-1611892440504-42a792e24d32 (cozy room)
+  * https://images.unsplash.com/photo-1587985064135-0366536eab42 (unique decor)
+  * https://images.unsplash.com/photo-1602002418816-5c0aeef426aa (rooftop bar)
+  * https://images.unsplash.com/photo-1444201983204-c43cbd584d93 (courtyard)
+  
+  Mix appropriate photos based on hotel type and add ?w=800&q=80 for optimized loading.
 
 Generate 3-5 relevant hotels based on the search query. If the query mentions a specific location, use that. If the query is just a hotel name or brand, generate realistic hotels with that name in different locations.`;
 
