@@ -431,13 +431,13 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
     : null;
 
   return (
-    <div className="min-h-screen pt-20 pb-24 px-4">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-screen pt-16 sm:pt-20 pb-24 px-3 sm:px-4">
+      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         {/* Hotel header card */}
-        <div className="bg-gradient-to-br from-warning/5 to-accent/5 rounded-2xl p-6 border border-warning/20 animate-fade-in">
-          <div className="flex items-start gap-4">
+        <div className="bg-gradient-to-br from-warning/5 to-accent/5 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-warning/20 animate-fade-in">
+          <div className="flex items-start gap-3 sm:gap-4">
             {/* Hotel image placeholder */}
-            <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-accent to-warning overflow-hidden flex-shrink-0">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg sm:rounded-xl bg-gradient-to-br from-accent to-warning overflow-hidden flex-shrink-0">
               {result.photos[0] ? (
                 <img 
                   src={result.photos[0]} 
@@ -445,14 +445,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-white font-bold text-2xl">
+                <div className="w-full h-full flex items-center justify-center text-white font-bold text-xl sm:text-2xl">
                   {result.hotel.name.charAt(0)}
                 </div>
               )}
             </div>
 
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-display font-bold text-foreground truncate">
+              <h1 className="text-base sm:text-xl font-display font-bold text-foreground truncate">
                 {result.hotel.name}
               </h1>
               <a 
@@ -468,55 +468,55 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           </div>
 
           {/* Potential loss warning - Enhanced Summary */}
-          <div className="mt-6 p-4 bg-warning/10 rounded-xl border border-warning/20">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingDown className="w-5 h-5 text-warning" />
-              <p className="text-lg font-semibold text-foreground">
+          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-warning/10 rounded-lg sm:rounded-xl border border-warning/20">
+            <div className="flex items-start sm:items-center gap-2 mb-3">
+              <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-warning flex-shrink-0 mt-0.5 sm:mt-0" />
+              <p className="text-sm sm:text-lg font-semibold text-foreground leading-tight">
                 You could be losing ~${monthlyLossRange.min.toLocaleString()}–${monthlyLossRange.max.toLocaleString()}/month
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4">
               {/* SEO Health */}
-              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-                <Globe className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
+                <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">SEO Health</p>
-                  <p className={`text-sm font-medium ${seoHealth.color}`}>
-                    {seoHealth.label} ({seoScore}/100)
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">SEO Health</p>
+                  <p className={`text-xs sm:text-sm font-medium ${seoHealth.color}`}>
+                    {seoHealth.label} <span className="hidden sm:inline">({seoScore}/100)</span>
                   </p>
                 </div>
               </div>
               
               {/* Website Issues */}
-              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-                <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
+                <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Website</p>
-                  <p className={`text-sm font-medium ${websiteIssues.length > 3 ? 'text-danger' : websiteIssues.length > 0 ? 'text-warning' : 'text-success'}`}>
-                    {websiteIssues.length} {websiteIssues.length === 1 ? 'issue' : 'issues'} found
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Website</p>
+                  <p className={`text-xs sm:text-sm font-medium ${websiteIssues.length > 3 ? 'text-danger' : websiteIssues.length > 0 ? 'text-warning' : 'text-success'}`}>
+                    {websiteIssues.length} {websiteIssues.length === 1 ? 'issue' : 'issues'}
                   </p>
                 </div>
               </div>
               
               {/* Search Results */}
-              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
+                <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Search Visibility</p>
-                  <p className={`text-sm font-medium ${searchHealthPercent >= 70 ? 'text-success' : searchHealthPercent >= 40 ? 'text-warning' : 'text-danger'}`}>
-                    {rankedKeywords}/{totalKeywords} keywords ranked
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Search</p>
+                  <p className={`text-xs sm:text-sm font-medium ${searchHealthPercent >= 70 ? 'text-success' : searchHealthPercent >= 40 ? 'text-warning' : 'text-danger'}`}>
+                    {rankedKeywords}/{totalKeywords} ranked
                   </p>
                 </div>
               </div>
               
               {/* Top Competitor */}
-              <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-                <Trophy className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
+                <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Top Competitor</p>
-                  <p className="text-sm font-medium text-foreground truncate" title={strongestCompetitor?.name}>
-                    {strongestCompetitor ? `${strongestCompetitor.name.length > 15 ? strongestCompetitor.name.slice(0, 15) + '...' : strongestCompetitor.name} (${strongestCompetitor.rating}★)` : 'None found'}
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Top Competitor</p>
+                  <p className="text-xs sm:text-sm font-medium text-foreground truncate" title={strongestCompetitor?.name}>
+                    {strongestCompetitor ? `${strongestCompetitor.name.length > 12 ? strongestCompetitor.name.slice(0, 12) + '...' : strongestCompetitor.name}` : 'None'}
                   </p>
                 </div>
               </div>
@@ -525,28 +525,28 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* What is SEO and GEO? */}
-        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '100ms' }}>
-          <h2 className="text-lg font-semibold text-foreground mb-4">What is SEO and GEO?</h2>
-          <div className="space-y-4">
-            <div className="p-4 bg-muted/50 rounded-xl">
+        <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border animate-fade-in" style={{ animationDelay: '100ms' }}>
+          <h2 className="text-base sm:text-lg font-semibold text-foreground mb-3 sm:mb-4">What is SEO and GEO?</h2>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="p-3 sm:p-4 bg-muted/50 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Search className="w-4 h-4 text-primary" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
                 </div>
-                <h3 className="font-medium text-foreground">SEO (Search Engine Optimization)</h3>
+                <h3 className="font-medium text-sm sm:text-base text-foreground">SEO (Search Engine Optimization)</h3>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 SEO is the practice of optimizing your website and online presence to rank higher in search engine results like Google. It helps potential guests find your hotel when searching for accommodations in your area.
               </p>
             </div>
-            <div className="p-4 bg-muted/50 rounded-xl">
+            <div className="p-3 sm:p-4 bg-muted/50 rounded-lg sm:rounded-xl">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <Globe className="w-4 h-4 text-accent" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                  <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent" />
                 </div>
-                <h3 className="font-medium text-foreground">GEO (Generative Engine Optimization)</h3>
+                <h3 className="font-medium text-sm sm:text-base text-foreground">GEO (Generative Engine Optimization)</h3>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 GEO is the emerging practice of optimizing your content to appear in AI-powered search results and chatbots like ChatGPT, Perplexity, and Google AI Overviews. As more travelers use AI assistants to plan trips, GEO ensures your hotel gets recommended.
               </p>
             </div>
@@ -554,9 +554,9 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* Competitor ranking */}
-        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '150ms' }}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">
+        <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border animate-fade-in" style={{ animationDelay: '150ms' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">
               You're ranking below {competitors.filter(c => c.rank < 4).length} competitors
             </h2>
             <Button
@@ -564,14 +564,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
               size="sm"
               onClick={regenerateCompetitors}
               disabled={isRegeneratingCompetitors}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               {isRegeneratingCompetitors ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <RefreshCw className="w-4 h-4" />
               )}
-              {isRegeneratingCompetitors ? 'Generating...' : 'Generate new competitors'}
+              <span className="text-xs sm:text-sm">{isRegeneratingCompetitors ? 'Generating...' : 'Generate new'}</span>
             </Button>
           </div>
           <CompetitorList 
@@ -582,14 +582,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* AI Recommendations Section */}
-        <div className="bg-gradient-to-br from-primary/5 via-background to-accent/5 rounded-2xl p-6 border border-primary/20 animate-fade-in" style={{ animationDelay: '150ms' }}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent">
-              <Brain className="w-5 h-5 text-primary-foreground" />
+        <div className="bg-gradient-to-br from-primary/5 via-background to-accent/5 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-primary/20 animate-fade-in" style={{ animationDelay: '150ms' }}>
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
+            <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-accent flex-shrink-0">
+              <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">AI-Powered Recommendations</h3>
-              <p className="text-xs text-muted-foreground">Personalized insights to boost your online presence</p>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold text-foreground">AI-Powered Recommendations</h3>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Personalized insights to boost your online presence</p>
             </div>
           </div>
           
@@ -648,14 +648,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* AI Fix CTA */}
-        <div className="bg-gradient-to-r from-muted to-secondary rounded-2xl p-6 animate-fade-in" style={{ animationDelay: '200ms' }}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent">
-              <ScanLine className="w-5 h-5 text-primary-foreground" />
+        <div className="bg-gradient-to-r from-muted to-secondary rounded-xl sm:rounded-2xl p-4 sm:p-6 animate-fade-in" style={{ animationDelay: '200ms' }}>
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
+            <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-accent flex-shrink-0">
+              <ScanLine className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">AI Website Optimization</h3>
-              <p className="text-xs text-muted-foreground">See what's wrong and how to improve</p>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold text-foreground">AI Website Optimization</h3>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">See what's wrong and how to improve</p>
             </div>
           </div>
           
@@ -715,14 +715,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* Google Business Profile */}
-        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '250ms' }}>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-accent">
-              <MapPin className="w-5 h-5 text-primary-foreground" />
+        <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border animate-fade-in" style={{ animationDelay: '250ms' }}>
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
+            <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-accent flex-shrink-0">
+              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Google Business Profile</h3>
-              <p className="text-xs text-muted-foreground">Optimize your local presence</p>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold text-foreground">Google Business Profile</h3>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Optimize your local presence</p>
             </div>
           </div>
           <GoogleBusinessProfile 
@@ -736,32 +736,32 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         </div>
 
         {/* Search rankings */}
-        <div className="bg-card rounded-2xl p-6 border border-border animate-fade-in" style={{ animationDelay: '300ms' }}>
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border animate-fade-in" style={{ animationDelay: '300ms' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
+              <h2 className="text-base sm:text-lg font-semibold text-foreground">
                 Online Customer Search Inquiries
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Where your hotel is showing up in customer search inquires, next to your competitors
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Where your hotel is showing up in customer search inquires
               </p>
             </div>
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-muted rounded-lg p-1 self-start">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-md transition-colors ${
+                className={`p-1.5 sm:p-2 rounded-md transition-colors ${
                   viewMode === 'list' ? 'bg-card shadow-sm' : ''
                 }`}
               >
-                <List className="w-4 h-4" />
+                <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={() => setViewMode('map')}
-                className={`p-2 rounded-md transition-colors ${
+                className={`p-1.5 sm:p-2 rounded-md transition-colors ${
                   viewMode === 'map' ? 'bg-card shadow-sm' : ''
                 }`}
               >
-                <Map className="w-4 h-4" />
+                <Map className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
           </div>
