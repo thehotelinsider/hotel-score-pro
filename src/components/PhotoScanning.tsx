@@ -51,17 +51,21 @@ const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos }: Photo
             {[...photos, ...photos].map((photo, index) => (
               <div
                 key={index}
-                className="relative mx-auto w-64 sm:w-80 h-44 sm:h-56 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl transform"
+                className="relative mx-auto bg-white p-2 sm:p-3 pb-8 sm:pb-12 rounded-sm shadow-[0_4px_20px_rgba(0,0,0,0.3)] transform"
                 style={{
                   transform: `rotate(${index % 2 === 0 ? 3 : -3}deg) scale(${0.95 + (index % 3) * 0.02})`,
+                  width: 'fit-content',
                 }}
               >
-                <img
-                  src={photo}
-                  alt="Hotel"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 border-4 border-white/20 rounded-xl sm:rounded-2xl" />
+                <div className="w-56 sm:w-72 h-40 sm:h-48 overflow-hidden">
+                  <img
+                    src={photo}
+                    alt="Hotel"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {/* Polaroid bottom area with subtle texture */}
+                <div className="absolute bottom-0 left-0 right-0 h-6 sm:h-10 bg-gradient-to-b from-white to-gray-50" />
               </div>
             ))}
           </div>
