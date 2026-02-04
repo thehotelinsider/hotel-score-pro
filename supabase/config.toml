@@ -14,3 +14,15 @@ verify_jwt = false
 
 [functions.analyze-google-business]
 verify_jwt = false
+
+[functions.generate-competitors]
+verify_jwt = false
+
+[functions.generate-map-rankings]
+verify_jwt = false
+
+[functions.generate-rankings]
+verify_jwt = false
+
+[functions.scan-website]
+verify_jwt = false
