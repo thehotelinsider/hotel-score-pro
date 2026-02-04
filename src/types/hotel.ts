@@ -11,6 +11,7 @@ export interface Hotel {
   description: string;
   imageUrl?: string;
   photos?: string[]; // Array of hotel photo URLs
+  outsideArea?: boolean; // True if hotel is outside the 100-mile Knoxville, TN radius
   coordinates?: {
     lat: number;
     lng: number;
