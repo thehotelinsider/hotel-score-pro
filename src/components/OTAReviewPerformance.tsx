@@ -93,20 +93,33 @@ const getSentimentIcon = (sentiment: string) => {
   }
 };
 
-const formatNumber = (num: number): string => {
+const formatNumber = (num: number | null | undefined): string => {
+  if (num == null) return 'N/A';
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
   return num.toString();
+};
+
+const formatRating = (rating: number | null | undefined): string => {
+  if (rating == null) return 'N/A';
+  return rating.toFixed(1);
 };
 
 const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
   const [isOpen, setIsOpen] = useState(false);
   const config = platformConfig[platform.platform];
 
-  const ratingDiff = platform.hotelMetrics.rating - platform.competitorAverage.rating;
-  const reviewCountDiff = platform.hotelMetrics.reviewCount - platform.competitorAverage.reviewCount;
-  const responseRateDiff = platform.hotelMetrics.responseRate - platform.competitorAverage.responseRate;
+  // Safely get numeric values with defaults
+  const hotelRating = platform.hotelMetrics?.rating ?? 0;
+  const competitorRating = platform.competitorAverage?.rating ?? 0;
+  const hotelReviewCount = platform.hotelMetrics?.reviewCount ?? 0;
+  const competitorReviewCount = platform.competitorAverage?.reviewCount ?? 0;
+  const hotelResponseRate = platform.hotelMetrics?.responseRate ?? 0;
+  const competitorResponseRate = platform.competitorAverage?.responseRate ?? 0;
 
+  const ratingDiff = hotelRating - competitorRating;
+  const reviewCountDiff = hotelReviewCount - competitorReviewCount;
+  const responseRateDiff = hotelResponseRate - competitorResponseRate;
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger className="w-full">
@@ -124,9 +137,9 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Star className="w-3 h-3 fill-warning text-warning" />
-                <span>{platform.hotelMetrics.rating.toFixed(1)}</span>
+                <span>{formatRating(platform.hotelMetrics?.rating)}</span>
                 <span>•</span>
-                <span>{formatNumber(platform.hotelMetrics.reviewCount)} reviews</span>
+                <span>{formatNumber(platform.hotelMetrics?.reviewCount)} reviews</span>
               </div>
             </div>
           </div>
@@ -157,7 +170,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 <Star className="w-3.5 h-3.5 text-warning" />
                 <span className="text-xs text-muted-foreground">Rating</span>
               </div>
-              <p className="font-semibold text-foreground">{platform.hotelMetrics.rating.toFixed(1)} / 5</p>
+              <p className="font-semibold text-foreground">{formatRating(platform.hotelMetrics?.rating)} / 5</p>
               <p className={`text-xs ${ratingDiff >= 0 ? 'text-success' : 'text-danger'}`}>
                 {ratingDiff >= 0 ? '+' : ''}{ratingDiff.toFixed(1)} vs avg
               </p>
@@ -168,7 +181,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Reviews</span>
               </div>
-              <p className="font-semibold text-foreground">{formatNumber(platform.hotelMetrics.reviewCount)}</p>
+              <p className="font-semibold text-foreground">{formatNumber(platform.hotelMetrics?.reviewCount)}</p>
               <p className={`text-xs ${reviewCountDiff >= 0 ? 'text-success' : 'text-danger'}`}>
                 {reviewCountDiff >= 0 ? '+' : ''}{formatNumber(reviewCountDiff)} vs avg
               </p>
@@ -179,7 +192,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Response Rate</span>
               </div>
-              <p className="font-semibold text-foreground">{platform.hotelMetrics.responseRate}%</p>
+              <p className="font-semibold text-foreground">{platform.hotelMetrics?.responseRate ?? 0}%</p>
               <p className={`text-xs ${responseRateDiff >= 0 ? 'text-success' : 'text-danger'}`}>
                 {responseRateDiff >= 0 ? '+' : ''}{responseRateDiff}% vs avg
               </p>
@@ -190,9 +203,9 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Listing Complete</span>
               </div>
-              <p className="font-semibold text-foreground">{platform.hotelMetrics.listingCompleteness}%</p>
+              <p className="font-semibold text-foreground">{platform.hotelMetrics?.listingCompleteness ?? 0}%</p>
               <p className="text-xs text-muted-foreground">
-                Avg: {platform.competitorAverage.listingCompleteness}%
+                Avg: {platform.competitorAverage?.listingCompleteness ?? 0}%
               </p>
             </div>
           </div>
@@ -201,13 +214,13 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center gap-2 p-2 bg-background rounded-lg">
               <span className="text-xs text-muted-foreground">Response Time:</span>
-              <span className="text-xs font-medium text-foreground">{platform.hotelMetrics.averageResponseTime}</span>
+              <span className="text-xs font-medium text-foreground">{platform.hotelMetrics?.averageResponseTime ?? 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2 p-2 bg-background rounded-lg">
               <span className="text-xs text-muted-foreground">Recent Sentiment:</span>
               <div className="flex items-center gap-1">
-                {getSentimentIcon(platform.hotelMetrics.recentReviewSentiment)}
-                <span className="text-xs font-medium text-foreground capitalize">{platform.hotelMetrics.recentReviewSentiment}</span>
+                {getSentimentIcon(platform.hotelMetrics?.recentReviewSentiment ?? '')}
+                <span className="text-xs font-medium text-foreground capitalize">{platform.hotelMetrics?.recentReviewSentiment ?? 'N/A'}</span>
               </div>
             </div>
           </div>
