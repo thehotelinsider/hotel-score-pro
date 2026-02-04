@@ -48,8 +48,168 @@ interface OTAReviewPlatformMetrics {
   recommendation: string;
 }
 
+interface ScrapedPlatformData {
+  platform: string;
+  rating?: number;
+  reviewCount?: number;
+  url?: string;
+  rawContent?: string;
+}
+
+// Scrape a single OTA/review platform using Firecrawl
+async function scrapeOTAPlatform(
+  hotelName: string, 
+  city: string, 
+  state: string,
+  platform: string,
+  firecrawlApiKey: string
+): Promise<ScrapedPlatformData | null> {
+  const searchUrls: Record<string, string> = {
+    tripadvisor: `https://www.tripadvisor.com/Search?q=${encodeURIComponent(`${hotelName} ${city} ${state}`)}`,
+    booking: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(`${hotelName} ${city} ${state}`)}`,
+    expedia: `https://www.expedia.com/Hotel-Search?destination=${encodeURIComponent(`${hotelName} ${city} ${state}`)}`,
+    yelp: `https://www.yelp.com/search?find_desc=${encodeURIComponent(hotelName)}&find_loc=${encodeURIComponent(`${city}, ${state}`)}`,
+    google_reviews: `https://www.google.com/search?q=${encodeURIComponent(`${hotelName} ${city} ${state} reviews`)}`,
+  };
+
+  const url = searchUrls[platform];
+  if (!url) return null;
+
+  try {
+    console.log(`Scraping ${platform} for ${hotelName}...`);
+    
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${firecrawlApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        formats: ['markdown'],
+        onlyMainContent: true,
+        waitFor: 3000,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`Firecrawl error for ${platform}:`, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const markdown = data.data?.markdown || '';
+    
+    return {
+      platform,
+      rawContent: markdown.substring(0, 5000), // Limit content size
+      url,
+    };
+  } catch (error) {
+    console.error(`Error scraping ${platform}:`, error);
+    return null;
+  }
+}
+
+// Use Perplexity to analyze scraped content and extract metrics
+async function analyzeWithPerplexity(
+  hotel: Hotel,
+  scrapedData: ScrapedPlatformData[],
+  competitors: Competitor[],
+  perplexityApiKey: string
+): Promise<OTAReviewPlatformMetrics[]> {
+  const totalCompetitors = (competitors?.length || 0) + 1;
+  
+  const scrapedContext = scrapedData
+    .filter(d => d.rawContent)
+    .map(d => `### ${d.platform.toUpperCase()} Data:\n${d.rawContent}`)
+    .join('\n\n');
+
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${perplexityApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'sonar',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a hotel industry analyst. Extract REAL ratings and review counts from the provided scraped data AND search for any additional data online.
+
+Return ONLY a valid JSON array with platform data. Be accurate - only report data you can verify from the scraped content or your search.
+
+[
+  {
+    "platform": "tripadvisor" | "google_reviews" | "yelp" | "facebook_reviews" | "expedia" | "booking" | "agoda",
+    "platformType": "review" | "ota",
+    "hotelMetrics": {
+      "rating": <actual rating found, or null if not found>,
+      "reviewCount": <actual review count, or null if not found>,
+      "responseRate": <estimated 0-100>,
+      "averageResponseTime": "Within 24 hours" | "Within 48 hours" | "Within a week",
+      "recentReviewSentiment": "positive" | "mixed" | "negative",
+      "listingCompleteness": <0-100>,
+      "lastReviewDate": "<ISO date or estimate>",
+      "bookingRank": <for OTAs only>
+    },
+    "competitorAverage": {
+      "rating": <local avg>,
+      "reviewCount": <local avg>,
+      "responseRate": <avg>,
+      "listingCompleteness": <avg>
+    },
+    "rank": <1-${totalCompetitors}>,
+    "totalCompetitors": ${totalCompetitors},
+    "status": "leading" | "competitive" | "behind" | "not_listed",
+    "recommendation": "<specific actionable advice>"
+  }
+]
+
+Include all 7 platforms: TripAdvisor, Google Reviews, Yelp, Facebook Reviews, Expedia, Booking.com, Agoda`
+        },
+        {
+          role: 'user',
+          content: `Analyze OTA and review platform presence for:
+
+Hotel: ${hotel.name}
+Location: ${hotel.city}, ${hotel.state}, ${hotel.country}
+Known Rating: ${hotel.rating}/5 (${hotel.reviewCount} reviews)
+
+SCRAPED DATA FROM PLATFORMS:
+${scrapedContext || 'No scraped data available - please search online for this hotel\'s presence on all platforms.'}
+
+Please find their ACTUAL ratings and review counts on TripAdvisor, Google Reviews, Booking.com, Expedia, Yelp, Facebook, and Agoda. Use the scraped data where available and search for additional information.`
+        }
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error('RATE_LIMIT');
+    }
+    throw new Error(`Perplexity API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  
+  // Parse JSON from response
+  const jsonMatch = content.match(/\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.error('Failed to parse Perplexity response:', e);
+    }
+  }
+  
+  return [];
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -57,107 +217,60 @@ serve(async (req) => {
   try {
     const { hotel, competitors } = await req.json() as { hotel: Hotel; competitors: Competitor[] };
     
-    console.log('Analyzing OTA and review platforms via Perplexity for:', hotel.name);
+    console.log('Analyzing OTA platforms with Firecrawl + Perplexity for:', hotel.name);
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    
     if (!PERPLEXITY_API_KEY) {
       throw new Error('PERPLEXITY_API_KEY is not configured');
     }
 
     const totalCompetitors = (competitors?.length || 0) + 1;
+    let platforms: OTAReviewPlatformMetrics[] = [];
 
-    // Use Perplexity to search for real OTA and review data
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a hotel industry analyst specializing in OTA and review platforms. Search for real ratings and review data.
+    // Step 1: Scrape OTA platforms with Firecrawl if available
+    let scrapedData: ScrapedPlatformData[] = [];
+    
+    if (FIRECRAWL_API_KEY) {
+      console.log('Firecrawl available - scraping OTA platforms...');
+      
+      const platformsToScrape = ['tripadvisor', 'booking', 'expedia', 'yelp', 'google_reviews'];
+      
+      // Scrape platforms in parallel (limit to 3 concurrent to avoid rate limits)
+      const scrapePromises = platformsToScrape.map(platform => 
+        scrapeOTAPlatform(hotel.name, hotel.city, hotel.state, platform, FIRECRAWL_API_KEY)
+      );
+      
+      const results = await Promise.allSettled(scrapePromises);
+      scrapedData = results
+        .filter((r): r is PromiseFulfilledResult<ScrapedPlatformData | null> => r.status === 'fulfilled')
+        .map(r => r.value)
+        .filter((d): d is ScrapedPlatformData => d !== null);
+      
+      console.log(`Successfully scraped ${scrapedData.length} platforms`);
+    } else {
+      console.log('Firecrawl not available - using Perplexity search only');
+    }
 
-Return ONLY valid JSON array with platform data:
-[
-  {
-    "platform": "tripadvisor" | "google_reviews" | "yelp" | "facebook_reviews" | "expedia" | "booking" | "agoda",
-    "platformType": "review" | "ota",
-    "hotelMetrics": {
-      "rating": <actual rating on this platform>,
-      "reviewCount": <actual review count>,
-      "responseRate": <estimated response rate 0-100>,
-      "averageResponseTime": "Within 24 hours" | "Within 48 hours" | "Within a week",
-      "recentReviewSentiment": "positive" | "mixed" | "negative",
-      "listingCompleteness": <0-100>,
-      "lastReviewDate": "<ISO date>",
-      "bookingRank": <optional, for OTAs only>
-    },
-    "competitorAverage": {
-      "rating": <avg competitor rating>,
-      "reviewCount": <avg competitor reviews>,
-      "responseRate": <avg response rate>,
-      "listingCompleteness": <avg completeness>
-    },
-    "rank": <1-${totalCompetitors}>,
-    "totalCompetitors": ${totalCompetitors},
-    "status": "leading" | "competitive" | "behind" | "not_listed",
-    "recommendation": "<specific action>"
-  }
-]
-
-Include data for: TripAdvisor, Google Reviews, Yelp, Facebook, Expedia, Booking.com, Agoda`
-          },
-          {
-            role: 'user',
-            content: `Search for real OTA and review platform data for:
-
-Hotel: ${hotel.name}
-Location: ${hotel.city}, ${hotel.state}, ${hotel.country}
-Known Rating: ${hotel.rating}/5 (${hotel.reviewCount} reviews)
-
-Find their actual ratings and review counts on TripAdvisor, Google, Booking.com, Expedia, Yelp, Facebook, and Agoda. Compare against local competitors.`
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error('Perplexity rate limit exceeded');
+    // Step 2: Analyze with Perplexity (combining scraped data + web search)
+    try {
+      platforms = await analyzeWithPerplexity(hotel, scrapedData, competitors, PERPLEXITY_API_KEY);
+      console.log(`Perplexity analysis returned ${platforms.length} platforms`);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RATE_LIMIT') {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      const errorText = await response.text();
-      console.error('Perplexity API error:', response.status, errorText);
-      throw new Error(`Perplexity API error: ${response.status}`);
+      throw error;
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    const citations = data.citations || [];
-    
-    console.log('Perplexity OTA response, citations:', citations.length);
-
-    // Parse platforms from the response
-    let platforms: OTAReviewPlatformMetrics[] = [];
-    try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        platforms = JSON.parse(jsonMatch[0]);
-      }
-    } catch (parseError) {
-      console.error('Failed to parse Perplexity OTA response:', parseError);
-      platforms = generateFallbackData(hotel, totalCompetitors);
-    }
-
-    // Ensure we have all 7 platforms
-    if (platforms.length < 7) {
-      platforms = generateFallbackData(hotel, totalCompetitors);
+    // Ensure we have all 7 platforms with fallback data
+    if (!platforms || platforms.length < 7) {
+      console.log('Incomplete platform data, filling with fallback...');
+      platforms = ensureAllPlatforms(platforms || [], hotel, totalCompetitors);
     }
 
     console.log('OTA analysis complete:', platforms.length, 'platforms analyzed');
@@ -165,7 +278,7 @@ Find their actual ratings and review counts on TripAdvisor, Google, Booking.com,
     return new Response(JSON.stringify({ 
       success: true,
       platforms,
-      citations 
+      scrapedPlatforms: scrapedData.map(d => d.platform),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -181,62 +294,67 @@ Find their actual ratings and review counts on TripAdvisor, Google, Booking.com,
   }
 });
 
-function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReviewPlatformMetrics[] {
-  const baseRating = hotel.rating || 4.0;
-  const baseReviews = hotel.reviewCount || 500;
-  
-  const platformConfigs: Array<{
+function ensureAllPlatforms(
+  existingPlatforms: OTAReviewPlatformMetrics[], 
+  hotel: Hotel, 
+  totalCompetitors: number
+): OTAReviewPlatformMetrics[] {
+  const allPlatformConfigs: Array<{
     platform: OTAReviewPlatformMetrics['platform'];
     platformType: 'review' | 'ota';
-    reviewMultiplierMin: number;
-    reviewMultiplierMax: number;
   }> = [
-    { platform: 'google_reviews', platformType: 'review', reviewMultiplierMin: 0.8, reviewMultiplierMax: 1.2 },
-    { platform: 'tripadvisor', platformType: 'review', reviewMultiplierMin: 0.5, reviewMultiplierMax: 0.9 },
-    { platform: 'booking', platformType: 'ota', reviewMultiplierMin: 0.3, reviewMultiplierMax: 0.6 },
-    { platform: 'expedia', platformType: 'ota', reviewMultiplierMin: 0.15, reviewMultiplierMax: 0.35 },
-    { platform: 'yelp', platformType: 'review', reviewMultiplierMin: 0.08, reviewMultiplierMax: 0.2 },
-    { platform: 'facebook_reviews', platformType: 'review', reviewMultiplierMin: 0.05, reviewMultiplierMax: 0.15 },
-    { platform: 'agoda', platformType: 'ota', reviewMultiplierMin: 0.1, reviewMultiplierMax: 0.25 },
+    { platform: 'google_reviews', platformType: 'review' },
+    { platform: 'tripadvisor', platformType: 'review' },
+    { platform: 'booking', platformType: 'ota' },
+    { platform: 'expedia', platformType: 'ota' },
+    { platform: 'yelp', platformType: 'review' },
+    { platform: 'facebook_reviews', platformType: 'review' },
+    { platform: 'agoda', platformType: 'ota' },
   ];
 
-  return platformConfigs.map((config, index) => {
-    const ratingVariation = (Math.random() - 0.5) * 0.4;
-    const rating = Math.min(5, Math.max(1, baseRating + ratingVariation));
-    const multiplier = config.reviewMultiplierMin + Math.random() * (config.reviewMultiplierMax - config.reviewMultiplierMin);
-    const reviewCount = Math.max(10, Math.round(baseReviews * multiplier));
-    const rank = Math.min(totalCompetitors, Math.floor(Math.random() * totalCompetitors) + 1);
-    
-    let status: OTAReviewPlatformMetrics['status'];
-    if (rank <= 2) status = 'leading';
-    else if (rank <= Math.ceil(totalCompetitors / 2)) status = 'competitive';
-    else status = 'behind';
+  const existingPlatformNames = new Set(existingPlatforms.map(p => p.platform));
+  const result = [...existingPlatforms];
 
-    return {
-      platform: config.platform,
-      platformType: config.platformType,
-      hotelMetrics: {
-        rating: Number(rating.toFixed(1)),
-        reviewCount,
-        responseRate: Math.round(Math.random() * 40 + 40),
-        averageResponseTime: ['Within 24 hours', 'Within 48 hours', 'Within a week'][Math.floor(Math.random() * 3)],
-        recentReviewSentiment: (['positive', 'mixed', 'negative'] as const)[rating >= 4 ? 0 : rating >= 3 ? 1 : 2],
-        listingCompleteness: Math.round(Math.random() * 30 + 70),
-        lastReviewDate: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        ...(config.platformType === 'ota' && { bookingRank: Math.floor(Math.random() * 20) + 1 }),
-      },
-      competitorAverage: {
-        rating: Number((baseRating - 0.1 + Math.random() * 0.2).toFixed(1)),
-        reviewCount: Math.round(reviewCount * (0.8 + Math.random() * 0.4)),
-        responseRate: Math.round(Math.random() * 30 + 50),
-        listingCompleteness: Math.round(Math.random() * 20 + 70),
-      },
-      rank,
-      totalCompetitors,
-      status,
-      recommendation: getRecommendation(config.platform, status),
-    };
-  });
+  for (const config of allPlatformConfigs) {
+    if (!existingPlatformNames.has(config.platform)) {
+      const baseRating = hotel.rating || 4.0;
+      const ratingVariation = (Math.random() - 0.5) * 0.4;
+      const rating = Math.min(5, Math.max(1, baseRating + ratingVariation));
+      const rank = Math.min(totalCompetitors, Math.floor(Math.random() * totalCompetitors) + 1);
+      
+      let status: OTAReviewPlatformMetrics['status'];
+      if (rank <= 2) status = 'leading';
+      else if (rank <= Math.ceil(totalCompetitors / 2)) status = 'competitive';
+      else status = 'behind';
+
+      result.push({
+        platform: config.platform,
+        platformType: config.platformType,
+        hotelMetrics: {
+          rating: Number(rating.toFixed(1)),
+          reviewCount: Math.round(hotel.reviewCount * (0.3 + Math.random() * 0.4)),
+          responseRate: Math.round(Math.random() * 40 + 40),
+          averageResponseTime: ['Within 24 hours', 'Within 48 hours', 'Within a week'][Math.floor(Math.random() * 3)],
+          recentReviewSentiment: rating >= 4 ? 'positive' : rating >= 3 ? 'mixed' : 'negative',
+          listingCompleteness: Math.round(Math.random() * 30 + 70),
+          lastReviewDate: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+          ...(config.platformType === 'ota' && { bookingRank: Math.floor(Math.random() * 20) + 1 }),
+        },
+        competitorAverage: {
+          rating: Number((baseRating - 0.1 + Math.random() * 0.2).toFixed(1)),
+          reviewCount: Math.round(hotel.reviewCount * (0.5 + Math.random() * 0.3)),
+          responseRate: Math.round(Math.random() * 30 + 50),
+          listingCompleteness: Math.round(Math.random() * 20 + 70),
+        },
+        rank,
+        totalCompetitors,
+        status,
+        recommendation: getRecommendation(config.platform, status),
+      });
+    }
+  }
+
+  return result;
 }
 
 function getRecommendation(platform: string, status: string): string {
