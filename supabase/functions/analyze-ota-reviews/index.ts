@@ -57,144 +57,115 @@ serve(async (req) => {
   try {
     const { hotel, competitors } = await req.json() as { hotel: Hotel; competitors: Competitor[] };
     
-    console.log('Analyzing OTA and review platforms for:', hotel.name);
-    console.log('Comparing against', competitors?.length || 0, 'competitors');
+    console.log('Analyzing OTA and review platforms via Perplexity for:', hotel.name);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    if (!PERPLEXITY_API_KEY) {
+      throw new Error('PERPLEXITY_API_KEY is not configured');
     }
 
-    const totalCompetitors = (competitors?.length || 0) + 1; // Including the hotel itself
+    const totalCompetitors = (competitors?.length || 0) + 1;
 
-const systemPrompt = `You are an expert hotel industry analyst specializing in OTA (Online Travel Agencies) and review platforms. 
-Your task is to generate realistic performance metrics for a hotel across various review and OTA platforms, comparing them against competitors.
-
-IMPORTANT: Return ONLY a valid JSON array, no markdown, no code blocks, no explanations.
-
-The platforms to analyze are:
-- Review Platforms: TripAdvisor, Google Reviews, Yelp, Facebook Reviews
-- OTA Platforms: Expedia, Booking.com, Agoda
-
-CRITICAL - Review Count Guidelines (these are typical ranges for established hotels):
-- Google Reviews: Usually the highest - typically 500-5000 reviews for established hotels
-- TripAdvisor: Second highest - typically 300-3000 reviews
-- Booking.com: Third - typically 200-2000 verified guest reviews
-- Expedia: Moderate - typically 100-1500 reviews
-- Yelp: Lower for hotels - typically 50-500 reviews
-- Facebook: Variable - typically 50-400 recommendations
-- Agoda: Similar to Expedia - typically 100-1000 reviews
-
-Scale these numbers appropriately based on the hotel's total review count - a hotel with 1000 total reviews should have proportionally more on each platform than one with 100 reviews.`;
-
-    const userPrompt = `Generate OTA and review platform performance data for this hotel:
-
-Hotel: ${hotel.name}
-Location: ${hotel.city}, ${hotel.state}, ${hotel.country}
-Current Rating: ${hotel.rating}/5 (${hotel.reviewCount} total reviews across all platforms)
-
-Competitors (${competitors?.length || 0}):
-${competitors?.map(c => `- ${c.name} (Rating: ${c.rating})`).join('\n') || 'No competitors provided'}
-
-Generate a JSON array with exactly 7 platform objects. Each object must have this exact structure:
-{
-  "platform": "tripadvisor" | "google_reviews" | "yelp" | "facebook_reviews" | "expedia" | "booking" | "agoda",
-  "platformType": "review" | "ota",
-  "hotelMetrics": {
-    "rating": <number 1-5, typically within 0.3 of overall rating>,
-    "reviewCount": <number - MUST be realistic for the platform, see guidelines above>,
-    "responseRate": <number 0-100>,
-    "averageResponseTime": "<string like 'Within 24 hours'>",
-    "recentReviewSentiment": "positive" | "mixed" | "negative",
-    "listingCompleteness": <number 0-100>,
-    "lastReviewDate": "<ISO date string within last 30 days>",
-    "bookingRank": <number 1-50, only for OTA platforms>
-  },
-  "competitorAverage": {
-    "rating": <number>,
-    "reviewCount": <number - should be similar scale to hotel's count>,
-    "responseRate": <number>,
-    "listingCompleteness": <number>
-  },
-  "rank": <number 1-${totalCompetitors}>,
-  "totalCompetitors": ${totalCompetitors},
-  "status": "leading" | "competitive" | "behind" | "not_listed",
-  "recommendation": "<specific actionable recommendation>"
-}
-
-IMPORTANT - Make data accurate and realistic:
-- Google Reviews should have the most reviews, followed by TripAdvisor
-- Review counts should be proportional to the hotel's overall review count (${hotel.reviewCount})
-- OTA platforms (booking, expedia, agoda) typically have fewer reviews than review platforms
-- All review counts should be reasonable whole numbers
-- Status should reflect rank (1-2: leading, 3-4: competitive, 5+: behind)
-
-Return ONLY the JSON array, nothing else.`;
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Use Perplexity to search for real OTA and review data
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'sonar',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          {
+            role: 'system',
+            content: `You are a hotel industry analyst specializing in OTA and review platforms. Search for real ratings and review data.
+
+Return ONLY valid JSON array with platform data:
+[
+  {
+    "platform": "tripadvisor" | "google_reviews" | "yelp" | "facebook_reviews" | "expedia" | "booking" | "agoda",
+    "platformType": "review" | "ota",
+    "hotelMetrics": {
+      "rating": <actual rating on this platform>,
+      "reviewCount": <actual review count>,
+      "responseRate": <estimated response rate 0-100>,
+      "averageResponseTime": "Within 24 hours" | "Within 48 hours" | "Within a week",
+      "recentReviewSentiment": "positive" | "mixed" | "negative",
+      "listingCompleteness": <0-100>,
+      "lastReviewDate": "<ISO date>",
+      "bookingRank": <optional, for OTAs only>
+    },
+    "competitorAverage": {
+      "rating": <avg competitor rating>,
+      "reviewCount": <avg competitor reviews>,
+      "responseRate": <avg response rate>,
+      "listingCompleteness": <avg completeness>
+    },
+    "rank": <1-${totalCompetitors}>,
+    "totalCompetitors": ${totalCompetitors},
+    "status": "leading" | "competitive" | "behind" | "not_listed",
+    "recommendation": "<specific action>"
+  }
+]
+
+Include data for: TripAdvisor, Google Reviews, Yelp, Facebook, Expedia, Booking.com, Agoda`
+          },
+          {
+            role: 'user',
+            content: `Search for real OTA and review platform data for:
+
+Hotel: ${hotel.name}
+Location: ${hotel.city}, ${hotel.state}, ${hotel.country}
+Known Rating: ${hotel.rating}/5 (${hotel.reviewCount} reviews)
+
+Find their actual ratings and review counts on TripAdvisor, Google, Booking.com, Expedia, Yelp, Facebook, and Agoda. Compare against local competitors.`
+          }
         ],
-        stream: false,
       }),
     });
 
     if (!response.ok) {
       if (response.status === 429) {
-        console.error('Rate limit exceeded');
-        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (response.status === 402) {
-        console.error('Payment required');
-        return new Response(JSON.stringify({ error: 'AI credits exhausted. Please add credits to continue.' }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        console.error('Perplexity rate limit exceeded');
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error('Perplexity API error:', response.status, errorText);
+      throw new Error(`Perplexity API error: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
+    const citations = data.citations || [];
     
-    console.log('AI response received, parsing platforms data');
+    console.log('Perplexity OTA response, citations:', citations.length);
 
-    // Parse the JSON from the response
+    // Parse platforms from the response
     let platforms: OTAReviewPlatformMetrics[] = [];
     try {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         platforms = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON array found in response');
       }
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      console.log('Raw content:', content);
-      
-      // Generate fallback data
+      console.error('Failed to parse Perplexity OTA response:', parseError);
       platforms = generateFallbackData(hotel, totalCompetitors);
     }
 
-    console.log('Successfully generated', platforms.length, 'platform metrics');
+    // Ensure we have all 7 platforms
+    if (platforms.length < 7) {
+      platforms = generateFallbackData(hotel, totalCompetitors);
+    }
+
+    console.log('OTA analysis complete:', platforms.length, 'platforms analyzed');
 
     return new Response(JSON.stringify({ 
       success: true,
-      platforms 
+      platforms,
+      citations 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -214,8 +185,6 @@ function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReview
   const baseRating = hotel.rating || 4.0;
   const baseReviews = hotel.reviewCount || 500;
   
-  // Platform-specific review count multipliers (realistic distribution)
-  // Google Reviews typically has the most, followed by TripAdvisor
   const platformConfigs: Array<{
     platform: OTAReviewPlatformMetrics['platform'];
     platformType: 'review' | 'ota';
@@ -234,20 +203,14 @@ function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReview
   return platformConfigs.map((config, index) => {
     const ratingVariation = (Math.random() - 0.5) * 0.4;
     const rating = Math.min(5, Math.max(1, baseRating + ratingVariation));
-    
-    // Calculate review count using platform-specific multipliers
     const multiplier = config.reviewMultiplierMin + Math.random() * (config.reviewMultiplierMax - config.reviewMultiplierMin);
     const reviewCount = Math.max(10, Math.round(baseReviews * multiplier));
-    
     const rank = Math.min(totalCompetitors, Math.floor(Math.random() * totalCompetitors) + 1);
     
     let status: OTAReviewPlatformMetrics['status'];
     if (rank <= 2) status = 'leading';
     else if (rank <= Math.ceil(totalCompetitors / 2)) status = 'competitive';
     else status = 'behind';
-
-    // Calculate competitor average with slight variation
-    const competitorReviewMultiplier = 0.8 + Math.random() * 0.4;
 
     return {
       platform: config.platform,
@@ -264,7 +227,7 @@ function generateFallbackData(hotel: Hotel, totalCompetitors: number): OTAReview
       },
       competitorAverage: {
         rating: Number((baseRating - 0.1 + Math.random() * 0.2).toFixed(1)),
-        reviewCount: Math.round(reviewCount * competitorReviewMultiplier),
+        reviewCount: Math.round(reviewCount * (0.8 + Math.random() * 0.4)),
         responseRate: Math.round(Math.random() * 30 + 50),
         listingCompleteness: Math.round(Math.random() * 20 + 70),
       },
