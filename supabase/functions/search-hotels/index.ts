@@ -42,6 +42,22 @@ serve(async (req) => {
             role: 'system',
             content: `You are a hotel search assistant. Search for real hotels matching the user's query and return structured data.
 
+IMPORTANT GEOGRAPHIC RESTRICTION: Only return hotels located within 100 miles of Knoxville, Tennessee. This includes cities like:
+- Knoxville, TN (center)
+- Gatlinburg, TN
+- Pigeon Forge, TN
+- Sevierville, TN
+- Oak Ridge, TN
+- Maryville, TN
+- Morristown, TN
+- Johnson City, TN
+- Kingsport, TN
+- Bristol, TN
+- Asheville, NC (eastern edge)
+- And other cities within approximately 100 miles of Knoxville
+
+If the user searches for a hotel that is OUTSIDE this 100-mile radius, still return results but add "outsideArea": true to each hotel object.
+
 IMPORTANT: Return ONLY valid JSON with no additional text.
 
 For each real hotel found, provide:
@@ -56,12 +72,13 @@ For each real hotel found, provide:
 - priceLevel: "$", "$$", "$$$", "$$$$", or "$$$$$"
 - description: brief description from their website or reviews
 - photos: array of 6-8 Unsplash hotel photo URLs (use realistic hotel images like https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80)
+- outsideArea: boolean (true if hotel is outside 100-mile radius of Knoxville, TN; false or omit if within area)
 
 Return 3-5 REAL hotels that actually exist.`
           },
           {
             role: 'user',
-            content: `Search for real hotels: "${query}". Find actual hotels that exist with their real addresses, ratings, and information.`
+            content: `Search for real hotels: "${query}". Find actual hotels that exist with their real addresses, ratings, and information. Remember to only include hotels within 100 miles of Knoxville, TN, or mark them as outsideArea if they are farther.`
           }
         ],
       }),

@@ -94,6 +94,10 @@ const Index = () => {
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-foreground mb-3 sm:mb-4 animate-fade-in px-2">
               Enter your hotel name and receive your Hotel Online Score Card
             </h1>
+
+            <p className="text-sm sm:text-base text-accent font-medium mb-2 animate-fade-in px-2" style={{ animationDelay: '50ms' }}>
+              Search hotels in Knoxville, TN and surrounding areas.
+            </p>
             
             <p className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-12 animate-fade-in px-2" style={{ animationDelay: '100ms' }}>
               Scan your site in seconds and make sure your hotel is beating its competitors.

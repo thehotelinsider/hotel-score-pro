@@ -100,6 +100,14 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
   };
 
   const handleSelectHotel = (hotel: Hotel) => {
+    // Check if hotel is outside the designated area
+    if (hotel.outsideArea) {
+      toast({
+        title: "Outside Designated Area",
+        description: `"${hotel.name}" is located outside the 100-mile radius of Knoxville, TN. Results may be limited for hotels in this area.`,
+        variant: "default",
+      });
+    }
     setQuery(hotel.name);
     setShowSuggestions(false);
     onSearch(hotel);
