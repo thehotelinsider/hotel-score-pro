@@ -1,4 +1,4 @@
-import { Star, Utensils, MapPin } from 'lucide-react';
+import { Star, Hotel, MapPin } from 'lucide-react';
 import { Competitor } from '@/types/hotel';
 
 interface CompetitorListProps {
@@ -39,7 +39,7 @@ const CompetitorList = ({ competitors, currentHotelName, currentHotelRank }: Com
             }`}
           >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-              <Utensils className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+              <Hotel className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
             </div>
             
             <div className="flex-1 min-w-0">
