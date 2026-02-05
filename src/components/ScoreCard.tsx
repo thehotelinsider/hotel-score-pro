@@ -436,19 +436,22 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         {/* Hotel header card */}
         <div className="bg-gradient-to-br from-warning/5 to-accent/5 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-warning/20 animate-fade-in">
           <div className="flex items-start gap-3 sm:gap-4">
-            {/* Hotel image placeholder */}
+            {/* Hotel image */}
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg sm:rounded-xl bg-gradient-to-br from-accent to-warning overflow-hidden flex-shrink-0">
-              {result.photos[0] ? (
+              {(result.hotel.imageUrl || result.hotel.photos?.[0] || result.photos[0]) ? (
                 <img 
-                  src={result.photos[0]} 
+                  src={result.hotel.imageUrl || result.hotel.photos?.[0] || result.photos[0]} 
                   alt={result.hotel.name}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white font-bold text-xl sm:text-2xl">
-                  {result.hotel.name.charAt(0)}
-                </div>
-              )}
+              ) : null}
+              <div className={`w-full h-full flex items-center justify-center text-white font-bold text-xl sm:text-2xl ${(result.hotel.imageUrl || result.hotel.photos?.[0] || result.photos[0]) ? 'hidden' : ''}`}>
+                {result.hotel.name.charAt(0)}
+              </div>
             </div>
 
             <div className="flex-1 min-w-0">
