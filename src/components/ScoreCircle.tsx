@@ -72,7 +72,7 @@ const ScoreCircle = ({ score, size = 'md', showLabel = true }: ScoreCircleProps)
       </div>
       {showLabel && (
         <div className="text-center">
-          <p className={`text-muted-foreground ${label}`}>Online health</p>
+          <p className={`text-muted-foreground ${label}`}>Online Score</p>
           <p className={`font-semibold ${getScoreColor(score)} ${label}`}>
             {getScoreLabel(score)}
           </p>
