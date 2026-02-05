@@ -77,33 +77,6 @@ serve(async (req) => {
       amenityProfile = 'bistro restaurant, bar, enhanced fitness, business center';
     }
 
-    // Extract sub-market from address
-    const addressLower = hotel.address.toLowerCase();
-    const cityLower = hotel.city.toLowerCase();
-    let subMarket = '';
-    
-    // Detect sub-market based on address keywords
-    if (addressLower.includes('downtown') || addressLower.includes('gay st') || addressLower.includes('market sq')) {
-      subMarket = 'downtown';
-    } else if (addressLower.includes('west') || addressLower.includes('cedar bluff') || addressLower.includes('kingston pike')) {
-      subMarket = 'west';
-    } else if (addressLower.includes('turkey creek') || addressLower.includes('parkside')) {
-      subMarket = 'Turkey Creek';
-    } else if (addressLower.includes('farragut')) {
-      subMarket = 'Farragut';
-    } else if (addressLower.includes('north') || addressLower.includes('broadway')) {
-      subMarket = 'north';
-    } else if (addressLower.includes('south') || addressLower.includes('chapman')) {
-      subMarket = 'south';
-    } else if (addressLower.includes('university') || addressLower.includes('cumberland')) {
-      subMarket = 'university area';
-    } else {
-      // Default to general area description
-      subMarket = `near ${hotel.address.split(',')[0]}`;
-    }
-
-    console.log(`Detected sub-market: ${subMarket} for ${hotel.name}`);
-
     // Use Perplexity to find real sub-market competitors
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -116,7 +89,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a hotel market analyst specializing in competitive set analysis. Find REAL competitor hotels that are in the SAME immediate sub-market area and have similar amenities.
+            content: `You are a hotel market analyst specializing in competitive set analysis. Find REAL competitor hotels that are in the same sub-market and have similar amenities.
 
 Return ONLY valid JSON with this exact structure - no additional text:
 {
@@ -135,12 +108,12 @@ Return ONLY valid JSON with this exact structure - no additional text:
 CRITICAL REQUIREMENTS:
 1. Find exactly 6-8 hotels total (including the subject hotel)
 2. All hotels MUST be real hotels that actually exist
-3. All hotels MUST be within 1.5 MILES of the subject hotel (same immediate sub-market)
+3. All hotels MUST be in the same geographic sub-market (within 5 miles)
 4. All hotels MUST be in the same segment (${hotelSegment})
 5. All hotels MUST have similar amenities (${amenityProfile})
-6. Rank hotels by their actual Google rating and review count
+6. Rank hotels by their actual Google Maps ranking/prominence
 7. Include real Google ratings and review counts
-8. The subject hotel should be placed at its actual competitive position`
+8. Place the subject hotel at its actual competitive position based on rating and reviews`
           },
           {
             role: 'user',
@@ -150,20 +123,19 @@ SUBJECT HOTEL:
 - Name: ${hotel.name}
 - Address: ${hotel.address}
 - City: ${hotel.city}, ${hotel.state}
-- Sub-market: ${subMarket}
 - Google Rating: ${hotel.rating}/5
 - Review Count: ${hotel.reviewCount || 'Unknown'}
 - Price Level: ${hotel.priceLevel}
 - Segment: ${hotelSegment}
 - Amenities: ${amenityProfile}
 
-Search for 5-7 REAL competitor hotels that:
-1. Are within 1.5 MILES of ${hotel.name} in the ${subMarket} sub-market of ${hotel.city}
+Search for 5-7 REAL competitor hotels near ${hotel.address} that:
+1. Are within 5 miles of ${hotel.name}
 2. Are the same type of hotel (${hotelSegment})
 3. Have similar amenities and price point (${hotel.priceLevel})
 4. Compete for the same guest type
 
-Return the competitive set ranked by Google rating and review count, with the subject hotel (${hotel.name}) placed at its actual competitive position based on its ${hotel.rating} rating and reviews.`
+Return the competitive set ranked by Google Maps prominence, with the subject hotel (${hotel.name}) placed at its actual competitive position based on its ${hotel.rating} rating.`
           }
         ],
       }),
