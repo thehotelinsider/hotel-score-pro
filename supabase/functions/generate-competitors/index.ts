@@ -111,43 +111,37 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
+        model: 'sonar',
         messages: [
           {
             role: 'system',
-            content: `You are a hotel market analyst specializing in competitive set analysis. Your task is to find REAL, VERIFIED competitor hotels using current search data.
+            content: `You are a hotel market analyst specializing in competitive set analysis. Find REAL competitor hotels that match the subject hotel's location type, star level, and amenity profile.
 
-CRITICAL REQUIREMENTS:
-1. ONLY return hotels that ACTUALLY EXIST with REAL, VERIFIED data from Google, TripAdvisor, or travel booking sites
-2. DO NOT generate fake hotels, fake ratings, or estimated data
-3. Every hotel must have a real street address that can be verified
-4. Every rating and ranking must come from actual review platforms
-5. If you cannot find real data for a hotel, DO NOT include it
+Return ONLY valid JSON array with no additional text.
 
-Return ONLY a valid JSON array with hotels you found in your search. Each hotel must have:
+For each competitor hotel, provide:
 - id: unique UUID
-- name: EXACT real hotel name as listed on Google/TripAdvisor
-- rating: REAL Google rating (verified from search results)
-- tripadvisorRank: REAL TripAdvisor ranking in the city (from TripAdvisor search)
-- starLevel: Official hotel star rating (2, 3, 4, or 5)
-- distance: Actual distance in miles from subject hotel
-- address: REAL street address
+- name: EXACT real hotel name (must be a real hotel that exists)
+- rating: Google rating (1-5 scale)
+- tripadvisorRank: TripAdvisor ranking in the city (numeric, e.g., 5 means #5 in the city)
+- starLevel: hotel star rating (2, 3, 4, or 5)
+- distance: distance in miles from subject hotel (must be within 5 miles)
+- address: real street address
 - city: city name
 - state: state abbreviation
-- locationType: Must match subject hotel location (${locationType})
+- locationType: location category (downtown, airport, highway, suburban, etc.)
 
-STRICT MATCHING RULES:
-1. SAME LOCATION TYPE ONLY: If subject is ${locationType}, only include ${locationType} hotels
-2. SAME STAR LEVEL: Within 1 star of subject hotel
-3. SAME SERVICE TYPE: ${hotelType} properties only
-4. WITHIN 3 MILES: Must be close proximity competitors
-5. REAL DATA ONLY: Skip any hotel where you cannot verify real ratings/rankings`
+CRITICAL MATCHING CRITERIA:
+1. ONLY include hotels in the SAME location type (e.g., downtown hotels for downtown hotels, airport hotels for airport hotels)
+2. ONLY include hotels with similar star level (within 1 star)
+3. ONLY include hotels with similar service type (extended-stay vs select-service vs full-service)
+4. Rank results by TripAdvisor ranking first, then by star level, then by Google rating`
           },
           {
             role: 'user',
-            content: `Search Google and TripAdvisor for REAL competitor hotels near:
+            content: `Find 6-8 REAL competitor hotels near:
 
-Subject Hotel: ${hotel.name}
+Hotel: ${hotel.name}
 Address: ${hotel.address}
 Location: ${hotel.city}, ${hotel.state}
 Location Type: ${locationType}
@@ -155,17 +149,13 @@ Hotel Segment: ${hotelType}
 Star Level: ${starLevel}
 Price Level: ${hotel.priceLevel}
 
-Find 6-8 REAL hotels that meet ALL these criteria:
-1. Located in ${locationType} area of ${hotel.city} (MUST be same location type)
-2. Similar ${starLevel} properties (within 1 star)
+IMPORTANT: Only find hotels that are:
+1. In the ${locationType} area (same neighborhood/district)
+2. Similar ${starLevel} properties
 3. Same service type: ${hotelType}
-4. Within 3 miles of ${hotel.address}
-5. Have REAL verified ratings on Google and TripAdvisor
+4. Within 5 miles of the subject hotel
 
-Search TripAdvisor for "${hotel.city} ${locationType} hotels" to find actual rankings.
-Search Google Maps for "hotels near ${hotel.address}" to find nearby competitors.
-
-Return ONLY hotels with VERIFIED real data. Order by TripAdvisor city ranking (best first).`
+Order results by TripAdvisor city ranking (best ranked first), then by star level, then by Google rating.`
           }
         ],
       }),
@@ -205,33 +195,23 @@ Return ONLY hotels with VERIFIED real data. Order by TripAdvisor city ranking (b
       }
     } catch (parseError) {
       console.error('Failed to parse Perplexity competitors response:', parseError);
-      // Return empty array instead of fallback - we only want real data
-      console.log('No valid competitor data found, returning empty array');
-      competitors = [];
+      // Fallback to Lovable AI
+      competitors = await fallbackToLovableAI(hotel, content);
     }
 
-    // Filter out any competitors that don't have required real data fields
-    competitors = competitors.filter((c: any) => {
-      const hasRequiredData = c.name && c.address && typeof c.rating === 'number' && typeof c.tripadvisorRank === 'number';
-      if (!hasRequiredData) {
-        console.log(`Filtering out incomplete competitor: ${c.name || 'unknown'}`);
-      }
-      return hasRequiredData;
-    });
-
-    // Map competitors with real data only - don't fill in fake defaults
+    // Ensure all competitors have required fields
     competitors = competitors.map((c: any, index: number) => ({
       id: c.id || crypto.randomUUID(),
-      name: c.name,
-      rating: c.rating,
-      tripadvisorRank: c.tripadvisorRank,
-      starLevel: c.starLevel,
-      rank: index + 1,
-      distance: c.distance,
-      address: c.address,
+      name: c.name || `Competitor ${index + 1}`,
+      rating: typeof c.rating === 'number' ? c.rating : 4.0,
+      tripadvisorRank: typeof c.tripadvisorRank === 'number' ? c.tripadvisorRank : index + 10,
+      starLevel: typeof c.starLevel === 'number' ? c.starLevel : 3,
+      rank: c.rank || index + 1,
+      distance: typeof c.distance === 'number' ? c.distance : (index + 1) * 0.5,
+      address: c.address || '',
       city: c.city || hotel.city,
       state: c.state || hotel.state,
-      locationType: c.locationType || locationType,
+      locationType: c.locationType || 'general',
     }));
 
     // Sort by TripAdvisor rank first, then by star level (desc), then by Google rating (desc)
@@ -267,4 +247,69 @@ Return ONLY hotels with VERIFIED real data. Order by TripAdvisor city ranking (b
   }
 });
 
-// Removed fallback function - we only use real data from Perplexity
+async function fallbackToLovableAI(hotel: Hotel, perplexityContent: string): Promise<Competitor[]> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) return [];
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'user',
+            content: `Extract competitor hotels from this text for ${hotel.name} in ${hotel.city}, ${hotel.state}:\n\n${perplexityContent}\n\nReturn JSON array with: id, name, rating, rank, distance, address, city, state`
+          }
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "return_competitors",
+              description: "Return competitor hotels",
+              parameters: {
+                type: "object",
+                properties: {
+                  competitors: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        name: { type: "string" },
+                        rating: { type: "number" },
+                        rank: { type: "number" },
+                        distance: { type: "number" },
+                        address: { type: "string" },
+                        city: { type: "string" },
+                        state: { type: "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "return_competitors" } }
+      }),
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    if (data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments) {
+      const args = JSON.parse(data.choices[0].message.tool_calls[0].function.arguments);
+      return args.competitors || [];
+    }
+  } catch (e) {
+    console.error('Fallback AI failed:', e);
+  }
+
+  return [];
+}
