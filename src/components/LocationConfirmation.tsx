@@ -44,34 +44,49 @@ const LocationConfirmation = ({ hotel, onContinue }: LocationConfirmationProps) 
       <div className="w-full max-w-lg animate-fade-in">
         {/* Hotel card with map */}
         <div className="bg-card rounded-xl sm:rounded-2xl border border-border shadow-lg overflow-hidden">
-          {/* Map placeholder */}
-          <div className="relative h-40 sm:h-48 bg-gradient-to-br from-green-100 to-blue-100">
-            <div className="absolute inset-0 flex items-center justify-center">
-              {/* Simplified map with streets */}
-              <svg className="w-full h-full" viewBox="0 0 400 200">
-                <rect fill="#e8f5e9" width="400" height="200" />
-                {/* Streets */}
-                <line x1="0" y1="100" x2="400" y2="100" stroke="#fff" strokeWidth="8" />
-                <line x1="200" y1="0" x2="200" y2="200" stroke="#fff" strokeWidth="6" />
-                <line x1="100" y1="0" x2="100" y2="200" stroke="#fff" strokeWidth="4" />
-                <line x1="300" y1="0" x2="300" y2="200" stroke="#fff" strokeWidth="4" />
-                <line x1="0" y1="50" x2="400" y2="50" stroke="#fff" strokeWidth="3" />
-                <line x1="0" y1="150" x2="400" y2="150" stroke="#fff" strokeWidth="3" />
-                {/* Buildings */}
-                <rect x="110" y="60" width="30" height="30" fill="#c8e6c9" rx="2" />
-                <rect x="220" y="110" width="40" height="35" fill="#c8e6c9" rx="2" />
-                <rect x="50" y="120" width="35" height="25" fill="#c8e6c9" rx="2" />
-                <rect x="320" y="55" width="25" height="40" fill="#c8e6c9" rx="2" />
-              </svg>
-              
-              {/* Location pin */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-full">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-danger/30 rounded-full animate-pulse-ring" />
-                  <MapPin className="w-8 h-8 sm:w-10 sm:h-10 text-danger fill-danger drop-shadow-lg" />
-                </div>
+          {/* Hotel image or map placeholder */}
+          <div className="relative h-40 sm:h-48 bg-gradient-to-br from-muted to-muted/50">
+            {hotel.imageUrl || (hotel.photos && hotel.photos.length > 0) ? (
+              <img 
+                src={hotel.imageUrl || hotel.photos?.[0]} 
+                alt={hotel.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to gradient if image fails to load
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                {/* Simplified map with streets */}
+                <svg className="w-full h-full" viewBox="0 0 400 200">
+                  <rect fill="hsl(var(--muted))" width="400" height="200" />
+                  {/* Streets */}
+                  <line x1="0" y1="100" x2="400" y2="100" stroke="hsl(var(--background))" strokeWidth="8" />
+                  <line x1="200" y1="0" x2="200" y2="200" stroke="hsl(var(--background))" strokeWidth="6" />
+                  <line x1="100" y1="0" x2="100" y2="200" stroke="hsl(var(--background))" strokeWidth="4" />
+                  <line x1="300" y1="0" x2="300" y2="200" stroke="hsl(var(--background))" strokeWidth="4" />
+                  <line x1="0" y1="50" x2="400" y2="50" stroke="hsl(var(--background))" strokeWidth="3" />
+                  <line x1="0" y1="150" x2="400" y2="150" stroke="hsl(var(--background))" strokeWidth="3" />
+                  {/* Buildings */}
+                  <rect x="110" y="60" width="30" height="30" fill="hsl(var(--accent) / 0.3)" rx="2" />
+                  <rect x="220" y="110" width="40" height="35" fill="hsl(var(--accent) / 0.3)" rx="2" />
+                  <rect x="50" y="120" width="35" height="25" fill="hsl(var(--accent) / 0.3)" rx="2" />
+                  <rect x="320" y="55" width="25" height="40" fill="hsl(var(--accent) / 0.3)" rx="2" />
+                </svg>
+              </div>
+            )}
+            
+            {/* Location pin overlay */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-full pointer-events-none">
+              <div className="relative">
+                <div className="absolute inset-0 bg-danger/30 rounded-full animate-pulse-ring" />
+                <MapPin className="w-8 h-8 sm:w-10 sm:h-10 text-danger fill-danger drop-shadow-lg" />
               </div>
             </div>
+
+            {/* Gradient overlay for text readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent" />
           </div>
 
           {/* Hotel info */}
