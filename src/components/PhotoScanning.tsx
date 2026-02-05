@@ -18,13 +18,50 @@ const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos, hotelCi
   const [fetchedPhotos, setFetchedPhotos] = useState<string[]>([]);
   const [isFetching, setIsFetching] = useState(false);
 
-  // Fetch real photos from Google Business Profile
+  // Fetch real photos from Google Places API
   const fetchRealPhotos = useCallback(async () => {
     if (!hotelName || isFetching) return;
     
     setIsFetching(true);
-    console.log('Fetching real photos for:', hotelName);
+    console.log('Fetching real photos from Google Places for:', hotelName);
     
+    try {
+      // Build search query with location context
+      const searchQuery = [hotelName, hotelCity, hotelState, hotelCountry]
+        .filter(Boolean)
+        .join(', ');
+
+      const { data, error } = await supabase.functions.invoke('google-places', {
+        body: {
+          query: searchQuery,
+          type: 'hotel',
+          maxPhotos: 12,
+        },
+      });
+
+      if (error) {
+        console.error('Error fetching photos from Google Places:', error);
+        // Fall back to Perplexity/Firecrawl method
+        return await fetchFallbackPhotos();
+      }
+
+      if (data?.success && data.photos?.length > 0) {
+        console.log('Fetched photos from Google Places:', data.photos.length);
+        setFetchedPhotos(data.photos);
+      } else {
+        console.log('No photos from Google Places, trying fallback...');
+        await fetchFallbackPhotos();
+      }
+    } catch (err) {
+      console.error('Failed to fetch real photos:', err);
+      await fetchFallbackPhotos();
+    } finally {
+      setIsFetching(false);
+    }
+  }, [hotelName, hotelCity, hotelState, hotelCountry, isFetching]);
+
+  // Fallback to Perplexity/Firecrawl method
+  const fetchFallbackPhotos = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('fetch-hotel-photos', {
         body: {
@@ -35,23 +72,14 @@ const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos, hotelCi
         },
       });
 
-      if (error) {
-        console.error('Error fetching photos:', error);
-        return;
-      }
-
-      if (data?.success && data.photos?.length > 0) {
-        console.log('Fetched real photos:', data.photos.length);
+      if (!error && data?.success && data.photos?.length > 0) {
+        console.log('Fetched fallback photos:', data.photos.length);
         setFetchedPhotos(data.photos);
-      } else {
-        console.log('No photos returned from API');
       }
     } catch (err) {
-      console.error('Failed to fetch real photos:', err);
-    } finally {
-      setIsFetching(false);
+      console.error('Fallback photo fetch failed:', err);
     }
-  }, [hotelName, hotelCity, hotelState, hotelCountry, isFetching]);
+  };
 
   // Start fetching photos on mount
   useEffect(() => {
