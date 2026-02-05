@@ -97,20 +97,20 @@ export interface OTAReviewPlatformMetrics {
   platform: 'tripadvisor' | 'google_reviews' | 'yelp' | 'facebook_reviews' | 'expedia' | 'booking' | 'agoda';
   platformType: 'review' | 'ota';
   hotelMetrics: {
-    rating: number;
-    reviewCount: number;
-    responseRate: number; // Percentage of reviews responded to
+    rating: number | null;
+    reviewCount: number | null;
+    responseRate: number | null; // Percentage of reviews responded to
     averageResponseTime: string; // e.g., "Within 24 hours"
     recentReviewSentiment: 'positive' | 'mixed' | 'negative';
-    listingCompleteness: number; // Percentage 0-100
+    listingCompleteness: number | null; // Percentage 0-100
     lastReviewDate: string;
-    bookingRank?: number; // For OTAs, position in search results
+    bookingRank?: number | null; // For OTAs, position in search results
   };
   competitorAverage: {
-    rating: number;
-    reviewCount: number;
-    responseRate: number;
-    listingCompleteness: number;
+    rating: number | null;
+    reviewCount: number | null;
+    responseRate: number | null;
+    listingCompleteness: number | null;
   };
   rank: number; // 1 = best among competitors
   totalCompetitors: number;
