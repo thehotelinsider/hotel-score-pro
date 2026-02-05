@@ -1,17 +1,68 @@
 import { Loader2 } from 'lucide-react';
-import { mockReviews } from '@/data/mockData';
 import { Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Review } from '@/types/hotel';
+import { mockReviews } from '@/data/mockData';
 
 interface ReviewScanningProps {
   onComplete: () => void;
+  hotelName?: string;
+  hotelCity?: string;
+  hotelState?: string;
+  hotelCountry?: string;
 }
 
-const ReviewScanning = ({ onComplete }: ReviewScanningProps) => {
+const ReviewScanning = ({ onComplete, hotelName, hotelCity, hotelState, hotelCountry }: ReviewScanningProps) => {
   const [progress, setProgress] = useState(0);
   const [visibleReviews, setVisibleReviews] = useState(0);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const fetchReviews = async () => {
+      if (!hotelName) {
+        console.log('No hotel name provided, using mock reviews');
+        setReviews(mockReviews);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        console.log(`Fetching real reviews for: ${hotelName}`);
+        const { data, error } = await supabase.functions.invoke('fetch-hotel-reviews', {
+          body: { 
+            hotelName,
+            city: hotelCity,
+            state: hotelState,
+            country: hotelCountry
+          },
+        });
+
+        if (error) {
+          console.error('Error fetching reviews:', error);
+          setReviews(mockReviews);
+        } else if (data?.success && data.reviews?.length > 0) {
+          console.log(`Loaded ${data.reviews.length} real reviews`);
+          setReviews(data.reviews);
+        } else {
+          console.log('No reviews found, using mock data');
+          setReviews(mockReviews);
+        }
+      } catch (err) {
+        console.error('Failed to fetch reviews:', err);
+        setReviews(mockReviews);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, [hotelName, hotelCity, hotelState, hotelCountry]);
+
+  useEffect(() => {
+    if (isLoading || reviews.length === 0) return;
+
     const progressTimer = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
@@ -25,7 +76,7 @@ const ReviewScanning = ({ onComplete }: ReviewScanningProps) => {
 
     const reviewTimer = setInterval(() => {
       setVisibleReviews(prev => 
-        prev < mockReviews.length ? prev + 1 : prev
+        prev < reviews.length ? prev + 1 : prev
       );
     }, 800);
 
@@ -33,12 +84,24 @@ const ReviewScanning = ({ onComplete }: ReviewScanningProps) => {
       clearInterval(progressTimer);
       clearInterval(reviewTimer);
     };
-  }, [onComplete]);
+  }, [onComplete, isLoading, reviews.length]);
+
+  // Show loading state while fetching reviews
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 pb-28 sm:pb-32 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto mb-4" />
+          <p className="text-muted-foreground">Finding reviews for {hotelName}...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-16 sm:pt-20 px-3 sm:px-4 pb-28 sm:pb-32">
       <div className="max-w-lg mx-auto space-y-3 sm:space-y-4">
-        {mockReviews.slice(0, visibleReviews).map((review, index) => (
+        {reviews.slice(0, visibleReviews).map((review, index) => (
           <div
             key={review.id}
             className="p-4 sm:p-5 bg-card rounded-lg sm:rounded-xl border border-border shadow-sm animate-slide-up"
