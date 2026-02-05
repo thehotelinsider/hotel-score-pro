@@ -20,10 +20,13 @@ interface Competitor {
   name: string;
   rating: number;
   rank: number;
+  tripadvisorRank?: number;
+  starLevel?: number;
   distance: number;
   address: string;
   city: string;
   state: string;
+  locationType?: string;
 }
 
 serve(async (req) => {
@@ -49,19 +52,55 @@ serve(async (req) => {
       throw new Error('PERPLEXITY_API_KEY is not configured');
     }
 
-    // Determine hotel type for better competitor matching
+    // Determine hotel type and location type for better competitor matching
     const hotelNameLower = hotel.name.toLowerCase();
+    const addressLower = hotel.address.toLowerCase();
+    
+    // Determine location type
+    let locationType = 'general area';
+    if (hotelNameLower.includes('downtown') || addressLower.includes('downtown') || 
+        addressLower.includes('city center') || addressLower.includes('main st')) {
+      locationType = 'downtown/city center';
+    } else if (hotelNameLower.includes('airport') || addressLower.includes('airport')) {
+      locationType = 'airport area';
+    } else if (hotelNameLower.includes('convention') || addressLower.includes('convention')) {
+      locationType = 'convention center area';
+    } else if (addressLower.includes('interstate') || addressLower.includes('i-40') || 
+               addressLower.includes('i-75') || addressLower.includes('highway')) {
+      locationType = 'highway/interstate corridor';
+    } else if (hotelNameLower.includes('resort') || hotelNameLower.includes('spa')) {
+      locationType = 'resort/destination area';
+    }
+    
+    // Determine hotel segment/type
     let hotelType = 'select-service hotel';
+    let starLevel = '3-star';
     
     if (hotelNameLower.includes('residence inn') || hotelNameLower.includes('homewood') || 
-        hotelNameLower.includes('staybridge') || hotelNameLower.includes('extended stay')) {
+        hotelNameLower.includes('staybridge') || hotelNameLower.includes('extended stay') ||
+        hotelNameLower.includes('towneplace') || hotelNameLower.includes('candlewood')) {
       hotelType = 'extended-stay hotel with suites and kitchens';
+      starLevel = '3-star extended-stay';
     } else if (hotelNameLower.includes('ritz') || hotelNameLower.includes('four seasons') || 
-               hotelNameLower.includes('waldorf') || hotel.priceLevel === '$$$$') {
-      hotelType = 'luxury hotel';
+               hotelNameLower.includes('waldorf') || hotelNameLower.includes('st. regis') ||
+               hotel.priceLevel === '$$$$') {
+      hotelType = 'luxury full-service hotel';
+      starLevel = '5-star luxury';
     } else if (hotelNameLower.includes('marriott hotel') || hotelNameLower.includes('hilton hotel') ||
-               hotelNameLower.includes('sheraton') || hotelNameLower.includes('hyatt')) {
+               hotelNameLower.includes('sheraton') || hotelNameLower.includes('hyatt regency') ||
+               hotelNameLower.includes('westin') || hotelNameLower.includes('renaissance')) {
       hotelType = 'full-service hotel with restaurant and meeting rooms';
+      starLevel = '4-star full-service';
+    } else if (hotelNameLower.includes('courtyard') || hotelNameLower.includes('hampton') ||
+               hotelNameLower.includes('hilton garden') || hotelNameLower.includes('holiday inn express') ||
+               hotelNameLower.includes('fairfield')) {
+      hotelType = 'select-service hotel';
+      starLevel = '3-star select-service';
+    } else if (hotelNameLower.includes('la quinta') || hotelNameLower.includes('comfort inn') ||
+               hotelNameLower.includes('best western') || hotelNameLower.includes('days inn') ||
+               hotelNameLower.includes('super 8') || hotel.priceLevel === '$') {
+      hotelType = 'economy/budget hotel';
+      starLevel = '2-star economy';
     }
 
     // Use Perplexity to find real competitor hotels
@@ -76,37 +115,47 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a hotel market analyst. Find REAL competitor hotels near the specified hotel.
+            content: `You are a hotel market analyst specializing in competitive set analysis. Find REAL competitor hotels that match the subject hotel's location type, star level, and amenity profile.
 
 Return ONLY valid JSON array with no additional text.
 
 For each competitor hotel, provide:
 - id: unique UUID
-- name: EXACT real hotel name
-- rating: actual Google rating (1-5)
-- rank: competitive market ranking (1-8)
-- distance: estimated distance in miles from subject hotel
+- name: EXACT real hotel name (must be a real hotel that exists)
+- rating: Google rating (1-5 scale)
+- tripadvisorRank: TripAdvisor ranking in the city (numeric, e.g., 5 means #5 in the city)
+- starLevel: hotel star rating (2, 3, 4, or 5)
+- distance: distance in miles from subject hotel (must be within 5 miles)
 - address: real street address
 - city: city name
 - state: state abbreviation
+- locationType: location category (downtown, airport, highway, suburban, etc.)
 
-Find hotels that:
-1. Are REAL hotels that actually exist
-2. Are in the same area/neighborhood
-3. Are similar in service level and price point
-4. Would compete for the same guests`
+CRITICAL MATCHING CRITERIA:
+1. ONLY include hotels in the SAME location type (e.g., downtown hotels for downtown hotels, airport hotels for airport hotels)
+2. ONLY include hotels with similar star level (within 1 star)
+3. ONLY include hotels with similar service type (extended-stay vs select-service vs full-service)
+4. Rank results by TripAdvisor ranking first, then by star level, then by Google rating`
           },
           {
             role: 'user',
-            content: `Find 8 REAL competitor hotels near:
+            content: `Find 6-8 REAL competitor hotels near:
 
 Hotel: ${hotel.name}
 Address: ${hotel.address}
 Location: ${hotel.city}, ${hotel.state}
-Type: ${hotelType}
+Location Type: ${locationType}
+Hotel Segment: ${hotelType}
+Star Level: ${starLevel}
 Price Level: ${hotel.priceLevel}
 
-Search for actual hotels within 5 miles that compete for the same guests. Return their real names, addresses, and Google ratings.`
+IMPORTANT: Only find hotels that are:
+1. In the ${locationType} area (same neighborhood/district)
+2. Similar ${starLevel} properties
+3. Same service type: ${hotelType}
+4. Within 5 miles of the subject hotel
+
+Order results by TripAdvisor city ranking (best ranked first), then by star level, then by Google rating.`
           }
         ],
       }),
@@ -155,16 +204,31 @@ Search for actual hotels within 5 miles that compete for the same guests. Return
       id: c.id || crypto.randomUUID(),
       name: c.name || `Competitor ${index + 1}`,
       rating: typeof c.rating === 'number' ? c.rating : 4.0,
+      tripadvisorRank: typeof c.tripadvisorRank === 'number' ? c.tripadvisorRank : index + 10,
+      starLevel: typeof c.starLevel === 'number' ? c.starLevel : 3,
       rank: c.rank || index + 1,
       distance: typeof c.distance === 'number' ? c.distance : (index + 1) * 0.5,
       address: c.address || '',
       city: c.city || hotel.city,
       state: c.state || hotel.state,
+      locationType: c.locationType || 'general',
     }));
 
-    // Sort by distance and limit to 8
+    // Sort by TripAdvisor rank first, then by star level (desc), then by Google rating (desc)
     competitors = competitors
-      .sort((a, b) => a.distance - b.distance)
+      .sort((a, b) => {
+        // First by TripAdvisor rank (lower is better)
+        if (a.tripadvisorRank !== b.tripadvisorRank) {
+          return (a.tripadvisorRank || 999) - (b.tripadvisorRank || 999);
+        }
+        // Then by star level (higher is better)
+        if (a.starLevel !== b.starLevel) {
+          return (b.starLevel || 3) - (a.starLevel || 3);
+        }
+        // Finally by Google rating (higher is better)
+        return b.rating - a.rating;
+      })
+      .map((c, index) => ({ ...c, rank: index + 1 })) // Re-assign ranks based on sorting
       .slice(0, 8);
 
     console.log(`Found ${competitors.length} real competitors via Perplexity`);
