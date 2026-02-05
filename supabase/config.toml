@@ -1,5 +1,8 @@
 project_id = "scaiwhbhmwthykqnkxjx"
 
+[functions.fetch-hotel-photos]
+verify_jwt = false
+
 [functions.analyze-hotel]
 verify_jwt = false
 

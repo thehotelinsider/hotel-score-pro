@@ -1,30 +1,80 @@
 import { Loader2, Maximize2, Hash, Share2, RefreshCw } from 'lucide-react';
 import { mockHotelPhotos } from '@/data/mockData';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PhotoScanningProps {
   onComplete: () => void;
   hotelName?: string;
   hotelImage?: string;
   hotelPhotos?: string[]; // Array of hotel photos
+  hotelCity?: string;
+  hotelState?: string;
+  hotelCountry?: string;
 }
 
-const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos }: PhotoScanningProps) => {
+const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos, hotelCity, hotelState, hotelCountry }: PhotoScanningProps) => {
   const [progress, setProgress] = useState(0);
+  const [fetchedPhotos, setFetchedPhotos] = useState<string[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
 
-  // Use hotel photos array if provided, otherwise fall back to single image or mock photos
+  // Fetch real photos from Google Business Profile
+  const fetchRealPhotos = useCallback(async () => {
+    if (!hotelName || isFetching) return;
+    
+    setIsFetching(true);
+    console.log('Fetching real photos for:', hotelName);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-hotel-photos', {
+        body: {
+          hotelName,
+          hotelCity,
+          hotelState,
+          hotelCountry,
+        },
+      });
+
+      if (error) {
+        console.error('Error fetching photos:', error);
+        return;
+      }
+
+      if (data?.success && data.photos?.length > 0) {
+        console.log('Fetched real photos:', data.photos.length);
+        setFetchedPhotos(data.photos);
+      } else {
+        console.log('No photos returned from API');
+      }
+    } catch (err) {
+      console.error('Failed to fetch real photos:', err);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [hotelName, hotelCity, hotelState, hotelCountry, isFetching]);
+
+  // Start fetching photos on mount
+  useEffect(() => {
+    fetchRealPhotos();
+  }, []);
+
+  // Use fetched photos, then hotel photos array, then single image, then mock photos
   const photos = useMemo(() => {
-    // Priority 1: Use the photos array from the hotel data
+    // Priority 1: Use fetched real photos from GBP
+    if (fetchedPhotos.length > 0) {
+      return fetchedPhotos;
+    }
+    // Priority 2: Use the photos array from the hotel data
     if (hotelPhotos && hotelPhotos.length > 0) {
       return hotelPhotos;
     }
-    // Priority 2: Use single hotel image repeated
+    // Priority 3: Use single hotel image repeated
     if (hotelImage) {
       return [hotelImage, hotelImage, hotelImage, hotelImage, hotelImage];
     }
-    // Priority 3: Fall back to mock photos
+    // Priority 4: Fall back to mock photos
     return mockHotelPhotos;
-  }, [hotelImage, hotelPhotos]);
+  }, [hotelImage, hotelPhotos, fetchedPhotos]);
 
   useEffect(() => {
     const timer = setInterval(() => {

@@ -155,6 +155,9 @@ const Index = () => {
           hotelName={selectedHotel.name}
           hotelImage={selectedHotel.imageUrl}
           hotelPhotos={selectedHotel.photos}
+          hotelCity={selectedHotel.city}
+          hotelState={selectedHotel.state}
+          hotelCountry={selectedHotel.country}
         />
       </div>
     );
