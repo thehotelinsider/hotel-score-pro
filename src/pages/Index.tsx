@@ -164,11 +164,17 @@ const Index = () => {
   }
 
   // Review scanning page
-  if (stage === 'reviews') {
+  if (stage === 'reviews' && selectedHotel) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <ReviewScanning onComplete={handleReviewsComplete} />
+        <ReviewScanning 
+          onComplete={handleReviewsComplete}
+          hotelName={selectedHotel.name}
+          hotelCity={selectedHotel.city}
+          hotelState={selectedHotel.state}
+          hotelCountry={selectedHotel.country}
+        />
       </div>
     );
   }
