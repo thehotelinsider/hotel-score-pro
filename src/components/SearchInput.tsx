@@ -127,7 +127,7 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Find your hotel (e.g., 'Marriott New York')"
+          placeholder="Find your hotel (e.g., 'Residence Inn Knoxville')"
           rows={2}
           className="w-full px-4 sm:px-6 py-4 sm:py-5 pr-14 sm:pr-16 bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-base sm:text-lg"
         />
