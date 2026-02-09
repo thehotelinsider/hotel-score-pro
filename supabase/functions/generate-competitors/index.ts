@@ -149,6 +149,12 @@ serve(async (req) => {
             role: 'system',
             content: `You are a hotel market analyst. Find REAL TripAdvisor Travelers' Choice rankings and competitor data.
 
+ABSOLUTELY CRITICAL: Every hotel you return MUST be a REAL, currently operational hotel that EXISTS today and can be booked online (on Booking.com, Expedia, Marriott.com, Hilton.com, etc.). 
+- Do NOT invent, fabricate, or guess hotel names. 
+- Do NOT combine a brand name with a location to create a hotel that doesn't exist (e.g., "TownePlace Suites Downtown Knoxville" does NOT exist — do not include it).
+- If you are not 100% certain a hotel exists and is currently open for business, DO NOT include it.
+- Use only hotels you can verify from real TripAdvisor listings, Google Maps, or OTA search results.
+
 Return ONLY valid JSON with this structure:
 {
   "subjectHotel": {
@@ -158,13 +164,13 @@ Return ONLY valid JSON with this structure:
   },
   "competitors": [
     {
-      "name": "<exact real hotel name>",
-      "tripadvisorUrl": "<TripAdvisor URL>",
+      "name": "<exact real hotel name as listed on TripAdvisor or Google>",
+      "tripadvisorUrl": "<real TripAdvisor URL that resolves to this hotel's page>",
       "tripadvisorRank": <Travelers' Choice rank in the city>,
       "starLevel": <2-5>,
       "rating": <Google rating 1-5>,
       "distance": <miles from subject hotel>,
-      "address": "<real address>",
+      "address": "<real street address>",
       "city": "<city>",
       "state": "<state>",
       "locationType": "<downtown/airport/highway/suburban/resort>"
@@ -173,24 +179,27 @@ Return ONLY valid JSON with this structure:
 }
 
 CRITICAL RULES:
-1. ONLY include hotels in the SAME sub-market/location type as the subject hotel
-2. ONLY include hotels with similar star level (within 1 star)
-3. ONLY include hotels within 5 miles
-4. Use REAL TripAdvisor Travelers' Choice rankings (the "# of N hotels" ranking on TripAdvisor)
-5. Include 6-8 competitors
-6. Sort by TripAdvisor Travelers' Choice rank (best first)`
+1. ONLY include hotels that ACTUALLY EXIST and are CURRENTLY OPEN for business — verify each one
+2. ONLY include hotels in the SAME sub-market/location type as the subject hotel
+3. ONLY include hotels with similar star level (within 1 star)
+4. ONLY include hotels within 5 miles
+5. Use REAL TripAdvisor Travelers' Choice rankings (the "# of N hotels" ranking on TripAdvisor)
+6. Include 6-8 competitors
+7. Sort by TripAdvisor Travelers' Choice rank (best first)
+8. Use the EXACT hotel name as it appears on TripAdvisor or Google — do not paraphrase or fabricate names`
           },
           {
             role: 'user',
             content: `Find the TripAdvisor Travelers' Choice ranking for "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}.
 
-Then find 6-8 competitor hotels that are:
+Then find 6-8 REAL competitor hotels that are:
 1. In the ${locationType} area (same sub-market/neighborhood)
 2. Similar to ${starLevel} (${hotelType})
 3. Within 5 miles of the subject hotel
 4. Ranked by their TripAdvisor Travelers' Choice position in ${hotel.city}
+5. VERIFIED to exist and be currently operational — each hotel must be bookable on major OTAs or brand websites
 
-Include each hotel's real TripAdvisor URL and Travelers' Choice rank.`
+IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operating property with a verifiable TripAdvisor listing. Include each hotel's real TripAdvisor URL and Travelers' Choice rank.`
           }
         ],
       }),
