@@ -19,6 +19,7 @@ const Index = () => {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [rankings, setRankings] = useState<SearchRanking[]>([]);
+  const [subjectHotelTARank, setSubjectHotelTARank] = useState<number | null>(null);
 
   const handleSearch = (hotel: Hotel) => {
     setSelectedHotel(hotel);
@@ -36,7 +37,10 @@ const Index = () => {
         
         if (!competitorError && competitorData?.competitors) {
           setCompetitors(competitorData.competitors);
-          console.log('Generated competitors:', competitorData.competitors);
+          if (competitorData.subjectHotelTripadvisorRank) {
+            setSubjectHotelTARank(competitorData.subjectHotelTripadvisorRank);
+          }
+          console.log('Generated competitors:', competitorData.competitors, 'Subject TA rank:', competitorData.subjectHotelTripadvisorRank);
           
           // Now fetch rankings with the competitors context
           try {
@@ -184,7 +188,7 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <ScoreCard result={scanResult} />
+        <ScoreCard result={scanResult} subjectHotelTARank={subjectHotelTARank} />
       </div>
     );
   }

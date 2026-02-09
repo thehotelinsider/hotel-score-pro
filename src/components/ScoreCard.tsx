@@ -34,15 +34,17 @@ interface WebsiteScanData {
 interface ScoreCardProps {
   result: ScanResult;
   onCompetitorsRegenerated?: (competitors: Competitor[]) => void;
+  subjectHotelTARank?: number | null;
 }
 
-const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
+const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initialTARank }: ScoreCardProps) => {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [competitors, setCompetitors] = useState<Competitor[]>(result.competitors);
+  const [subjectHotelTARank, setSubjectHotelTARank] = useState<number | null>(initialTARank ?? null);
   const [isRegeneratingCompetitors, setIsRegeneratingCompetitors] = useState(false);
   const [revenueEstimate, setRevenueEstimate] = useState<number | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -282,6 +284,9 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
       }
 
       if (data?.competitors) {
+        if (data.subjectHotelTripadvisorRank) {
+          setSubjectHotelTARank(data.subjectHotelTripadvisorRank);
+        }
         // Merge new competitors with existing ones, avoiding duplicates by name
         setCompetitors(prevCompetitors => {
           const existingNames = new Set(prevCompetitors.map(c => c.name.toLowerCase()));
@@ -289,9 +294,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
             (c: Competitor) => !existingNames.has(c.name.toLowerCase())
           );
           const merged = [...prevCompetitors, ...newCompetitors];
-          // Re-rank all competitors by their rating (higher rating = better rank)
+          // Re-rank all competitors by their TripAdvisor rank, then rating
           const ranked = merged
-            .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+            .sort((a, b) => {
+              const aRank = (a as any).tripadvisorRank ?? 999;
+              const bRank = (b as any).tripadvisorRank ?? 999;
+              if (aRank !== bRank) return aRank - bRank;
+              return (b.rating || 0) - (a.rating || 0);
+            })
             .map((c, index) => ({ ...c, rank: index + 1 }));
           return ranked;
         });
@@ -560,7 +570,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
         <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border animate-fade-in" style={{ animationDelay: '150ms' }}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 className="text-base sm:text-lg font-semibold text-foreground">
-              You're ranking below {competitors.filter(c => c.rank < 4).length} competitors
+              You're ranking below {subjectHotelTARank ? competitors.filter(c => c.rank < subjectHotelTARank).length : competitors.length} competitors
             </h2>
             <Button
               variant="outline"
@@ -580,7 +590,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated }: ScoreCardProps) => {
           <CompetitorList 
             competitors={competitors.slice(0, 6)} 
             currentHotelName={result.hotel.name}
-            currentHotelRank={4}
+            currentHotelRank={subjectHotelTARank ?? competitors.length + 1}
           />
         </div>
 
