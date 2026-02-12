@@ -596,8 +596,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
           <CompetitorList 
             competitors={competitors.slice(0, 4)} 
             currentHotelName={result.hotel.name}
-            currentHotelRank={subjectHotelTARank ?? competitors.length + 1}
-            currentHotelStarLevel={subjectStarLevel}
+            currentHotelRating={result.hotel.rating}
           />
         </div>
 
