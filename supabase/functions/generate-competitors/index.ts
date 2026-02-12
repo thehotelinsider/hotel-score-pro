@@ -184,7 +184,7 @@ CRITICAL RULES:
 3. ONLY include hotels with similar star level (within 1 star)
 4. ONLY include hotels within 5 miles
 5. Use REAL TripAdvisor Travelers' Choice rankings (the "# of N hotels" ranking on TripAdvisor)
-6. Include 6-8 competitors
+6. Include exactly 4 competitors (no more, no less)
 7. Sort by TripAdvisor Travelers' Choice rank (best first)
 8. Use the EXACT hotel name as it appears on TripAdvisor or Google — do not paraphrase or fabricate names`
           },
@@ -192,7 +192,7 @@ CRITICAL RULES:
             role: 'user',
             content: `Find the TripAdvisor Travelers' Choice ranking for "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}.
 
-Then find 6-8 REAL competitor hotels that are:
+Then find exactly 4 REAL competitor hotels that are:
 1. In the ${locationType} area (same sub-market/neighborhood)
 2. Similar to ${starLevel} (${hotelType})
 3. Within 5 miles of the subject hotel
@@ -306,7 +306,7 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
         return b.rating - a.rating;
       })
       .map((c, index) => ({ ...c, rank: index + 1 }))
-      .slice(0, 8);
+      .slice(0, 4);
 
     // Attach the subject hotel's TripAdvisor rank to the response
     console.log(`Found ${competitors.length} competitors. Subject hotel TA rank: ${subjectHotelTARank}`);
