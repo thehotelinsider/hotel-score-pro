@@ -100,9 +100,22 @@ const SocialPlatformItem = ({ platform }: { platform: SocialPlatformMetrics }) =
             </div>
             <div className="text-left">
               <p className="font-medium text-foreground">{config.label}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatNumber(platform.hotelMetrics.followers)} followers
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-muted-foreground">
+                  {formatNumber(platform.hotelMetrics.followers)} followers
+                </p>
+                {platform.dataSource && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                    platform.dataSource === 'scraped' 
+                      ? 'bg-success/10 text-success border border-success/20' 
+                      : platform.dataSource === 'searched'
+                        ? 'bg-primary/10 text-primary border border-primary/20'
+                        : 'bg-muted text-muted-foreground border border-border'
+                  }`}>
+                    {platform.dataSource === 'scraped' ? 'Verified' : platform.dataSource === 'searched' ? 'Searched' : 'Est.'}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           
