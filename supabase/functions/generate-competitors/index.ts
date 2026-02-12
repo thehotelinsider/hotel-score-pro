@@ -296,14 +296,10 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
       await Promise.all(scrapePromises);
     }
 
-    // Sort competitors by TripAdvisor Travelers' Choice rank (primary), then star level, then Google rating
+    // Sort competitors by Star Rating only (highest star level first)
     competitors = competitors
       .sort((a: any, b: any) => {
-        const aRank = a.tripadvisorRank ?? 999;
-        const bRank = b.tripadvisorRank ?? 999;
-        if (aRank !== bRank) return aRank - bRank;
-        if ((b.starLevel || 3) !== (a.starLevel || 3)) return (b.starLevel || 3) - (a.starLevel || 3);
-        return b.rating - a.rating;
+        return (b.starLevel || 3) - (a.starLevel || 3);
       })
       .map((c, index) => ({ ...c, rank: index + 1 }))
       .slice(0, 4);
