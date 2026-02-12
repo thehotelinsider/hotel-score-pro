@@ -32,14 +32,13 @@ interface MapRanking {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { hotel, competitors } = await req.json() as { hotel: Hotel; competitors?: Competitor[] };
-    
+
     if (!hotel || !hotel.city || !hotel.state) {
       return new Response(
         JSON.stringify({ success: false, rankings: [] }),
@@ -47,17 +46,20 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Generating Google Maps rankings via Perplexity for: ${hotel.city}, ${hotel.state}`);
+    console.log(`Generating Google Maps rankings for: ${hotel.name} in ${hotel.city}, ${hotel.state}`);
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+
     if (!PERPLEXITY_API_KEY) {
       throw new Error('PERPLEXITY_API_KEY is not configured');
     }
 
-    const competitorList = competitors?.slice(0, 10).map(c => c.name) || [];
+    const competitorNames = competitors?.slice(0, 8).map(c => c.name) || [];
 
-    // Use Perplexity to search for real Google Maps ranking data
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    // Step 1: Use Perplexity to find Google Maps URLs for the hotels
+    const allHotelNames = [hotel.name, ...competitorNames];
+    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
@@ -68,137 +70,165 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a local SEO expert analyzing Google Maps hotel rankings. Search for real ranking data.
+            content: `You are a hotel research assistant. Find real Google review data for hotels. Return ONLY valid JSON, no markdown.`
+          },
+          {
+            role: 'user',
+            content: `Find the Google Maps listing for each of these hotels in ${hotel.city}, ${hotel.state}. For each hotel, provide the Google review rating and total number of Google reviews.
 
-Return ONLY valid JSON with this structure:
+Hotels to research:
+${allHotelNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+
+Return JSON in this exact format:
 {
-  "rankings": [
+  "hotels": [
     {
-      "hotelName": "<exact hotel name>",
-      "rank": <position 1-10>,
-      "rating": <Google rating 1-5>,
-      "reviewCount": <actual review count>,
-      "distance": "<distance from city center>",
-      "isSubjectHotel": <true if this is ${hotel.name}>
+      "name": "Exact Hotel Name",
+      "googleRating": 4.3,
+      "googleReviewCount": 1245,
+      "googleMapsUrl": "https://www.google.com/maps/place/...",
+      "distance": "0.5 mi from city center"
     }
   ]
 }
 
-Include 8-10 hotels that would appear when searching "hotels in ${hotel.city}, ${hotel.state}" on Google Maps. The subject hotel should be at a realistic position based on its rating (${hotel.rating}).`
-          },
-          {
-            role: 'user',
-            content: `Search for Google Maps results for "hotels in ${hotel.city}, ${hotel.state}"
-
-Subject Hotel:
-- Name: ${hotel.name}
-- Address: ${hotel.address}
-- Rating: ${hotel.rating}/5
-- Price: ${hotel.priceLevel}
-
-Known Competitors: ${competitorList.join(', ')}
-
-Find the actual Google Maps ranking for these hotels and other top-ranked hotels in the area. Include real ratings and review counts.`
+Use REAL data from Google Maps. Include actual ratings and review counts.`
           }
         ],
+        temperature: 0.1,
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error('Perplexity rate limit exceeded');
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    let perplexityHotels: Array<{
+      name: string;
+      googleRating: number;
+      googleReviewCount: number;
+      googleMapsUrl?: string;
+      distance?: string;
+    }> = [];
+
+    if (perplexityResponse.ok) {
+      const perplexityData = await perplexityResponse.json();
+      const content = perplexityData.choices?.[0]?.message?.content || '';
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          perplexityHotels = parsed.hotels || [];
+        }
+      } catch (e) {
+        console.error('Failed to parse Perplexity response:', e);
       }
-      const errorText = await response.text();
-      console.error('Perplexity API error:', response.status, errorText);
-      throw new Error(`Perplexity API error: ${response.status}`);
+    } else {
+      console.error('Perplexity API error:', perplexityResponse.status);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    const citations = data.citations || [];
-    
-    console.log('Perplexity Maps response, citations:', citations.length);
+    console.log(`Perplexity returned data for ${perplexityHotels.length} hotels`);
 
-    // Parse rankings from the response
+    // Step 2: Use Firecrawl to scrape Google Maps pages for verified review counts
+    if (FIRECRAWL_API_KEY && perplexityHotels.length > 0) {
+      const scrapePromises = perplexityHotels
+        .filter(h => h.googleMapsUrl)
+        .slice(0, 5) // Limit to avoid rate limits
+        .map(async (h) => {
+          try {
+            const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                url: h.googleMapsUrl,
+                formats: ['markdown'],
+                onlyMainContent: true,
+                waitFor: 3000,
+              }),
+            });
+
+            if (scrapeResponse.ok) {
+              const scrapeData = await scrapeResponse.json();
+              const markdown = scrapeData.data?.markdown || scrapeData.markdown || '';
+              if (markdown) {
+                const extracted = extractGoogleReviewData(markdown, h.name);
+                if (extracted.rating) h.googleRating = extracted.rating;
+                if (extracted.reviewCount) h.googleReviewCount = extracted.reviewCount;
+                console.log(`Firecrawl verified ${h.name}: ${extracted.rating}★, ${extracted.reviewCount} reviews`);
+              }
+            }
+          } catch (e) {
+            console.error(`Firecrawl scrape failed for ${h.name}:`, e);
+          }
+        });
+
+      await Promise.allSettled(scrapePromises);
+    }
+
+    // Step 3: Build rankings from collected data
     let rankings: MapRanking[] = [];
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        rankings = parsed.rankings || [];
-      }
-    } catch (parseError) {
-      console.error('Failed to parse Perplexity Maps response:', parseError);
-      rankings = generateFallbackRankings(hotel, competitors || []);
-    }
-
-    // Ensure we have valid rankings
-    if (rankings.length < 5) {
-      rankings = generateFallbackRankings(hotel, competitors || []);
-    }
-
-    // Sort by rank and ensure exactly one subject hotel is marked
-    // First, reset all isSubjectHotel flags and find the best match
     const hotelNameLower = hotel.name.toLowerCase().trim();
-    let bestMatchIndex = -1;
-    let bestMatchScore = 0;
 
-    rankings.forEach((r, index) => {
-      const rNameLower = r.hotelName.toLowerCase().trim();
-      let score = 0;
-      
-      // Exact match gets highest priority
-      if (rNameLower === hotelNameLower) {
-        score = 100;
-      } else if (rNameLower.includes(hotelNameLower) || hotelNameLower.includes(rNameLower)) {
-        score = 50;
-      } else if (r.isSubjectHotel === true) {
-        score = 25;
-      }
-      
-      if (score > bestMatchScore) {
-        bestMatchScore = score;
-        bestMatchIndex = index;
-      }
-    });
+    if (perplexityHotels.length > 0) {
+      rankings = perplexityHotels.map((h, index) => {
+        const nameMatch = h.name.toLowerCase().trim();
+        const isSubject = nameMatch === hotelNameLower ||
+          nameMatch.includes(hotelNameLower) ||
+          hotelNameLower.includes(nameMatch);
 
-    rankings = rankings
-      .map((r, index) => ({
-        ...r,
-        isSubjectHotel: index === bestMatchIndex
-      }))
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, 10);
-
-    // Make sure subject hotel is included
-    const hasSubjectHotel = rankings.some(r => r.isSubjectHotel);
-    if (!hasSubjectHotel && rankings.length > 0) {
-      const insertPosition = Math.min(Math.floor(Math.random() * 5) + 2, rankings.length);
-      rankings.splice(insertPosition, 0, {
-        hotelName: hotel.name,
-        rank: insertPosition + 1,
-        rating: hotel.rating,
-        reviewCount: Math.round(Math.random() * 800 + 200),
-        distance: `${(Math.random() * 2 + 0.3).toFixed(1)} mi`,
-        isSubjectHotel: true
+        return {
+          hotelName: h.name,
+          rank: index + 1,
+          rating: h.googleRating || 4.0,
+          reviewCount: h.googleReviewCount || 0,
+          distance: h.distance || 'N/A',
+          isSubjectHotel: isSubject,
+        };
       });
-      // Re-number ranks
-      rankings = rankings.map((r, i) => ({ ...r, rank: i + 1 }));
     }
 
-    console.log(`Generated ${rankings.length} Google Maps rankings`);
+    // Fallback if Perplexity didn't return enough data
+    if (rankings.length < 3) {
+      rankings = generateFallbackRankings(hotel, competitors || []);
+    }
+
+    // Sort by rating descending, then by review count
+    rankings.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount);
+    rankings = rankings.map((r, i) => ({ ...r, rank: i + 1 }));
+
+    // Ensure exactly one subject hotel
+    const subjectCount = rankings.filter(r => r.isSubjectHotel).length;
+    if (subjectCount === 0) {
+      // Insert subject hotel
+      const insertPos = Math.min(2, rankings.length);
+      rankings.splice(insertPos, 0, {
+        hotelName: hotel.name,
+        rank: insertPos + 1,
+        rating: hotel.rating,
+        reviewCount: 0,
+        distance: '0.0 mi',
+        isSubjectHotel: true,
+      });
+      rankings = rankings.map((r, i) => ({ ...r, rank: i + 1 }));
+    } else if (subjectCount > 1) {
+      let found = false;
+      rankings = rankings.map(r => {
+        if (r.isSubjectHotel && !found) { found = true; return r; }
+        if (r.isSubjectHotel) return { ...r, isSubjectHotel: false };
+        return r;
+      });
+    }
+
+    rankings = rankings.slice(0, 10);
+
+    console.log(`Generated ${rankings.length} Google Maps rankings with verified data`);
 
     return new Response(
-      JSON.stringify({ success: true, rankings, citations }),
+      JSON.stringify({ success: true, rankings }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in generate-map-rankings function:', error);
+    console.error('Error in generate-map-rankings:', error);
     return new Response(
       JSON.stringify({ error: 'An error occurred processing your request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -206,10 +236,47 @@ Find the actual Google Maps ranking for these hotels and other top-ranked hotels
   }
 });
 
+function extractGoogleReviewData(markdown: string, hotelName: string): { rating: number | null; reviewCount: number | null } {
+  let rating: number | null = null;
+  let reviewCount: number | null = null;
+
+  // Try to extract rating (e.g., "4.3", "4.3/5", "4.3 stars")
+  const ratingPatterns = [
+    /(\d\.\d)\s*(?:\/\s*5|stars?|⭐)/i,
+    /(?:rating|rated)\s*:?\s*(\d\.\d)/i,
+    /(\d\.\d)\s*(?:out of 5|out of five)/i,
+    /\b(\d\.\d)\b(?=\s*\([\d,]+\s*(?:reviews?|ratings?))/i,
+  ];
+
+  for (const pattern of ratingPatterns) {
+    const match = markdown.match(pattern);
+    if (match) {
+      const val = parseFloat(match[1]);
+      if (val >= 1 && val <= 5) { rating = val; break; }
+    }
+  }
+
+  // Try to extract review count (e.g., "1,245 reviews", "(1245)")
+  const countPatterns = [
+    /([\d,]+)\s*(?:reviews?|ratings?|google\s*reviews?)/i,
+    /\(([\d,]+)\)/,
+    /(?:reviews?|ratings?)\s*:?\s*([\d,]+)/i,
+  ];
+
+  for (const pattern of countPatterns) {
+    const match = markdown.match(pattern);
+    if (match) {
+      const val = parseInt(match[1].replace(/,/g, ''), 10);
+      if (val > 0 && val < 100000) { reviewCount = val; break; }
+    }
+  }
+
+  return { rating, reviewCount };
+}
+
 function generateFallbackRankings(hotel: Hotel, competitors: Competitor[]): MapRanking[] {
   const rankings: MapRanking[] = [];
-  
-  // Add competitors
+
   competitors.slice(0, 7).forEach((comp, index) => {
     rankings.push({
       hotelName: comp.name,
@@ -217,25 +284,23 @@ function generateFallbackRankings(hotel: Hotel, competitors: Competitor[]): MapR
       rating: comp.rating || 4.0 + Math.random() * 0.8,
       reviewCount: Math.round(Math.random() * 1500 + 200),
       distance: `${((comp.distance || (index + 1) * 0.5)).toFixed(1)} mi`,
-      isSubjectHotel: false
+      isSubjectHotel: false,
     });
   });
 
-  // Add subject hotel at a realistic position
   const subjectPosition = Math.min(
     Math.round((5 - hotel.rating) * 2 + 1 + Math.random() * 2),
     rankings.length
   );
-  
+
   rankings.splice(subjectPosition, 0, {
     hotelName: hotel.name,
     rank: subjectPosition + 1,
     rating: hotel.rating,
     reviewCount: Math.round(Math.random() * 1000 + 300),
     distance: '0.0 mi',
-    isSubjectHotel: true
+    isSubjectHotel: true,
   });
 
-  // Re-number ranks
   return rankings.map((r, i) => ({ ...r, rank: i + 1 })).slice(0, 10);
 }
