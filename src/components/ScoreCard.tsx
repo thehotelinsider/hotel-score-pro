@@ -57,6 +57,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
   const [isLoadingMapRankings, setIsLoadingMapRankings] = useState(false);
   const [otaReviewPlatforms, setOtaReviewPlatforms] = useState<OTAReviewPlatformMetrics[]>([]);
   const [isLoadingOtaReviews, setIsLoadingOtaReviews] = useState(false);
+  const [gbpScore, setGbpScore] = useState<number | null>(null);
 
   const scanWebsite = async () => {
     setIsScanning(true);
@@ -421,8 +422,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
   const monthlyLoss = Math.round((lossRange.min + lossRange.max) / 2);
   const monthlyLossRange = lossRange;
 
-  // Get SEO health status
-  const seoScore = result.score.seo;
+  // SEO Health uses GBP profile score (out of 20) scaled to 100, or falls back to mock score
+  const seoScore = gbpScore !== null ? Math.round((gbpScore / 20) * 100) : result.score.seo;
   const getSeoHealthStatus = () => {
     if (seoScore >= 80) return { label: 'Good', color: 'text-success' };
     if (seoScore >= 60) return { label: 'Needs work', color: 'text-warning' };
@@ -751,6 +752,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             hotelCountry={result.hotel.country}
             rating={result.hotel.rating}
             reviewCount={result.hotel.reviewCount}
+            onScoreLoaded={setGbpScore}
           />
         </div>
 

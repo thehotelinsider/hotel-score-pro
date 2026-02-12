@@ -23,6 +23,7 @@ interface GoogleBusinessProfileProps {
   hotelCountry?: string;
   rating?: number;
   reviewCount?: number;
+  onScoreLoaded?: (score: number) => void;
 }
 
 const getStatusIcon = (status: ProfileItem['status']) => {
@@ -54,6 +55,7 @@ export const GoogleBusinessProfile = ({
   hotelCountry,
   rating: initialRating = 4.2, 
   reviewCount: initialReviewCount = 856,
+  onScoreLoaded,
 }: GoogleBusinessProfileProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +98,7 @@ export const GoogleBusinessProfile = ({
       setReviewCount(data.reviewCount || initialReviewCount);
       setScore(data.score || 0);
       setHasLoaded(true);
+      onScoreLoaded?.(data.score || 0);
 
     } catch (error) {
       console.error("Error fetching Google Business data:", error);
