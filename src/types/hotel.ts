@@ -91,6 +91,7 @@ export interface SocialPlatformMetrics {
   totalCompetitors: number;
   status: 'leading' | 'competitive' | 'behind' | 'inactive';
   recommendation: string;
+  dataSource?: 'scraped' | 'searched' | 'estimated';
 }
 
 export interface OTAReviewPlatformMetrics {
