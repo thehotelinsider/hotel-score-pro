@@ -35,9 +35,10 @@ interface ScoreCardProps {
   result: ScanResult;
   onCompetitorsRegenerated?: (competitors: Competitor[]) => void;
   subjectHotelTARank?: number | null;
+  subjectHotelStarLevel?: number | null;
 }
 
-const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initialTARank }: ScoreCardProps) => {
+const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initialTARank, subjectHotelStarLevel: initialStarLevel }: ScoreCardProps) => {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
@@ -45,6 +46,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [competitors, setCompetitors] = useState<Competitor[]>(result.competitors);
   const [subjectHotelTARank, setSubjectHotelTARank] = useState<number | null>(initialTARank ?? null);
+  const [subjectStarLevel, setSubjectStarLevel] = useState<number | null>(initialStarLevel ?? null);
   const [isRegeneratingCompetitors, setIsRegeneratingCompetitors] = useState(false);
   const [revenueEstimate, setRevenueEstimate] = useState<number | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -286,6 +288,9 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
       if (data?.competitors) {
         if (data.subjectHotelTripadvisorRank) {
           setSubjectHotelTARank(data.subjectHotelTripadvisorRank);
+        }
+        if (data.subjectHotelStarLevel) {
+          setSubjectStarLevel(data.subjectHotelStarLevel);
         }
         // Merge new competitors with existing ones, avoiding duplicates by name
         setCompetitors(prevCompetitors => {
@@ -588,9 +593,10 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             </Button>
           </div>
           <CompetitorList 
-            competitors={competitors.slice(0, 6)} 
+            competitors={competitors.slice(0, 4)} 
             currentHotelName={result.hotel.name}
             currentHotelRank={subjectHotelTARank ?? competitors.length + 1}
+            currentHotelStarLevel={subjectStarLevel}
           />
         </div>
 

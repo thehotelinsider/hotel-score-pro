@@ -5,14 +5,24 @@ interface CompetitorListProps {
   competitors: Competitor[];
   currentHotelName: string;
   currentHotelRank: number;
+  currentHotelStarLevel?: number | null;
 }
 
-const CompetitorList = ({ competitors, currentHotelName, currentHotelRank }: CompetitorListProps) => {
+const CompetitorList = ({ competitors, currentHotelName, currentHotelRank, currentHotelStarLevel }: CompetitorListProps) => {
+  // Rank the subject hotel among competitors by star level (1st to 5th)
+  const subjectStar = currentHotelStarLevel ?? 3;
+  const competitorsWithStars = competitors.map(c => ({
+    ...c,
+    starLevel: (c as any).starLevel ?? 3,
+  }));
+
+  // Create combined list: competitors + subject hotel, sorted by star level descending
   const allEntries = [
-    ...competitors.filter(c => c.rank < currentHotelRank),
-    { id: 'current', name: currentHotelName, rating: 4.2, rank: currentHotelRank, isCurrent: true },
-    ...competitors.filter(c => c.rank > currentHotelRank),
-  ].sort((a, b) => a.rank - b.rank);
+    ...competitorsWithStars.map(c => ({ ...c, isCurrent: false })),
+    { id: 'current', name: currentHotelName, rating: 4.2, starLevel: subjectStar, rank: 0, isCurrent: true },
+  ]
+    .sort((a, b) => (b.starLevel || 3) - (a.starLevel || 3))
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
 
   const getRankLabel = (rank: number) => {
     // Handle 11, 12, 13 as special cases

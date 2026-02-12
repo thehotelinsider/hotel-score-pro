@@ -155,12 +155,19 @@ ABSOLUTELY CRITICAL: Every hotel you return MUST be a REAL, currently operationa
 - If you are not 100% certain a hotel exists and is currently open for business, DO NOT include it.
 - Use only hotels you can verify from real TripAdvisor listings, Google Maps, or OTA search results.
 
+LOCATION RULE - THIS IS THE MOST IMPORTANT RULE:
+- ALL competitors MUST be in the EXACT SAME CITY as the subject hotel.
+- If the subject hotel is in "${hotel.city}, ${hotel.state}", every competitor MUST also be in "${hotel.city}, ${hotel.state}".
+- Do NOT include hotels from neighboring cities, suburbs, or different municipalities.
+- Do NOT include hotels from a different sub-market (e.g., if subject is downtown, competitors must also be downtown).
+
 Return ONLY valid JSON with this structure:
 {
   "subjectHotel": {
     "tripadvisorUrl": "<TripAdvisor URL for the subject hotel>",
     "tripadvisorRank": <number - Travelers' Choice rank in the city, e.g. #5 of 120 hotels>,
-    "totalHotelsInCity": <total hotels on TripAdvisor in this city>
+    "totalHotelsInCity": <total hotels on TripAdvisor in this city>,
+    "starLevel": <2-5 star level of the subject hotel>
   },
   "competitors": [
     {
@@ -171,8 +178,8 @@ Return ONLY valid JSON with this structure:
       "rating": <Google rating 1-5>,
       "distance": <miles from subject hotel>,
       "address": "<real street address>",
-      "city": "<city>",
-      "state": "<state>",
+      "city": "${hotel.city}",
+      "state": "${hotel.state}",
       "locationType": "<downtown/airport/highway/suburban/resort>"
     }
   ]
@@ -180,13 +187,15 @@ Return ONLY valid JSON with this structure:
 
 CRITICAL RULES:
 1. ONLY include hotels that ACTUALLY EXIST and are CURRENTLY OPEN for business — verify each one
-2. ONLY include hotels in the SAME sub-market/location type as the subject hotel
-3. ONLY include hotels with similar star level (within 1 star)
-4. ONLY include hotels within 5 miles
-5. Use REAL TripAdvisor Travelers' Choice rankings (the "# of N hotels" ranking on TripAdvisor)
-6. Include exactly 4 competitors (no more, no less)
-7. Sort by TripAdvisor Travelers' Choice rank (best first)
-8. Use the EXACT hotel name as it appears on TripAdvisor or Google — do not paraphrase or fabricate names`
+2. ONLY include hotels in "${hotel.city}, ${hotel.state}" — the EXACT same city, NO exceptions
+3. ONLY include hotels in the SAME sub-market/location type as the subject hotel
+4. ONLY include hotels with similar star level (within 1 star)
+5. ONLY include hotels within 5 miles
+6. Use REAL TripAdvisor Travelers' Choice rankings (the "# of N hotels" ranking on TripAdvisor)
+7. Include exactly 4 competitors (no more, no less)
+8. Sort by star level (highest first), then by TripAdvisor Travelers' Choice rank
+9. Use the EXACT hotel name as it appears on TripAdvisor or Google — do not paraphrase or fabricate names
+10. Include the starLevel for the subject hotel in the subjectHotel object`
           },
           {
             role: 'user',
@@ -234,10 +243,12 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
     let competitors: Competitor[] = [];
     let subjectHotelTAUrl: string | null = null;
     let subjectHotelTARank: number | null = null;
+    let subjectHotelStarLevel: number | null = null;
 
     if (parsedData) {
       subjectHotelTAUrl = parsedData.subjectHotel?.tripadvisorUrl || null;
       subjectHotelTARank = parsedData.subjectHotel?.tripadvisorRank || null;
+      subjectHotelStarLevel = typeof parsedData.subjectHotel?.starLevel === 'number' ? parsedData.subjectHotel.starLevel : null;
 
       competitors = (parsedData.competitors || []).map((c: any, index: number) => ({
         id: crypto.randomUUID(),
@@ -296,6 +307,19 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
       await Promise.all(scrapePromises);
     }
 
+    // Filter out competitors not in the same city (post-processing safety check)
+    const hotelCityLower = hotel.city.toLowerCase().trim();
+    competitors = competitors.filter((c: any) => {
+      const compCity = (c.city || '').toLowerCase().trim();
+      return compCity === hotelCityLower;
+    });
+
+    // If no star level from Perplexity, infer from classification
+    if (!subjectHotelStarLevel) {
+      const starMatch = starLevel.match(/(\d)/);
+      subjectHotelStarLevel = starMatch ? parseInt(starMatch[1]) : 3;
+    }
+
     // Sort competitors by Star Rating only (highest star level first)
     competitors = competitors
       .sort((a: any, b: any) => {
@@ -304,14 +328,15 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
       .map((c, index) => ({ ...c, rank: index + 1 }))
       .slice(0, 4);
 
-    // Attach the subject hotel's TripAdvisor rank to the response
-    console.log(`Found ${competitors.length} competitors. Subject hotel TA rank: ${subjectHotelTARank}`);
+    // Attach the subject hotel's TripAdvisor rank and star level to the response
+    console.log(`Found ${competitors.length} competitors. Subject hotel TA rank: ${subjectHotelTARank}, star level: ${subjectHotelStarLevel}`);
 
     return new Response(
       JSON.stringify({
         competitors,
         citations,
         subjectHotelTripadvisorRank: subjectHotelTARank,
+        subjectHotelStarLevel,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
