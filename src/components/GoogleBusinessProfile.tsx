@@ -96,9 +96,10 @@ export const GoogleBusinessProfile = ({
       setProfileItems(data.profileItems || []);
       setRating(data.rating || initialRating);
       setReviewCount(data.reviewCount || initialReviewCount);
-      setScore(data.score || 0);
+      const finalScore = data.score || 0;
+      setScore(finalScore);
       setHasLoaded(true);
-      onScoreLoaded?.(data.score || 0);
+      onScoreLoaded?.(finalScore);
 
     } catch (error) {
       console.error("Error fetching Google Business data:", error);

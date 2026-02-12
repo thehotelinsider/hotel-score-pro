@@ -126,7 +126,7 @@ Find their actual Google rating, review count, and analyze their profile complet
     }
 
     // Ensure we have valid data
-    if (!googleBusinessData.profileItems || googleBusinessData.profileItems.length === 0) {
+    if (!googleBusinessData.profileItems || googleBusinessData.profileItems.length === 0 || googleBusinessData.score === 0) {
       googleBusinessData = generateFallbackData(hotelName, hotelRating, hotelReviewCount);
     }
 
