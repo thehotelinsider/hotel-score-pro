@@ -141,13 +141,35 @@ Find the actual Google Maps ranking for these hotels and other top-ranked hotels
       rankings = generateFallbackRankings(hotel, competitors || []);
     }
 
-    // Sort by rank and ensure subject hotel is marked
+    // Sort by rank and ensure exactly one subject hotel is marked
+    // First, reset all isSubjectHotel flags and find the best match
+    const hotelNameLower = hotel.name.toLowerCase().trim();
+    let bestMatchIndex = -1;
+    let bestMatchScore = 0;
+
+    rankings.forEach((r, index) => {
+      const rNameLower = r.hotelName.toLowerCase().trim();
+      let score = 0;
+      
+      // Exact match gets highest priority
+      if (rNameLower === hotelNameLower) {
+        score = 100;
+      } else if (rNameLower.includes(hotelNameLower) || hotelNameLower.includes(rNameLower)) {
+        score = 50;
+      } else if (r.isSubjectHotel === true) {
+        score = 25;
+      }
+      
+      if (score > bestMatchScore) {
+        bestMatchScore = score;
+        bestMatchIndex = index;
+      }
+    });
+
     rankings = rankings
-      .map(r => ({
+      .map((r, index) => ({
         ...r,
-        isSubjectHotel: r.hotelName.toLowerCase().includes(hotel.name.toLowerCase().split(' ')[0]) || 
-                        hotel.name.toLowerCase().includes(r.hotelName.toLowerCase().split(' ')[0]) ||
-                        r.isSubjectHotel === true
+        isSubjectHotel: index === bestMatchIndex
       }))
       .sort((a, b) => a.rank - b.rank)
       .slice(0, 10);
