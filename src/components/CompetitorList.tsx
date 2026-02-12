@@ -15,8 +15,14 @@ const CompetitorList = ({ competitors, currentHotelName, currentHotelRank }: Com
   ].sort((a, b) => a.rank - b.rank);
 
   const getRankLabel = (rank: number) => {
+    // Handle 11, 12, 13 as special cases
+    if (rank % 100 === 11 || rank % 100 === 12 || rank % 100 === 13) {
+      return `${rank}th`;
+    }
+    
+    const lastDigit = rank % 10;
     const suffixes: Record<number, string> = { 1: 'st', 2: 'nd', 3: 'rd' };
-    const suffix = suffixes[rank] || 'th';
+    const suffix = suffixes[lastDigit] || 'th';
     return `${rank}${suffix}`;
   };
 
