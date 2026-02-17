@@ -92,7 +92,27 @@ function extractReviewCountFromText(text: string): number | null {
   return null;
 }
 
-function extractRatingFromText(text: string): number | null {
+function extractRatingFromText(text: string, platform?: string): number | null {
+  // Booking.com uses X.X / 10 scale
+  if (platform === 'booking') {
+    const bookingPatterns: RegExp[] = [
+      /(?:scored?|rated?|rating)\s*[:\s]*(\d{1,2}(?:\.\d)?)\s*(?:\/\s*10|out\s+of\s+10)/i,
+      /(\d{1,2}\.\d)\s*(?:\/\s*10|out\s+of\s+10)/i,
+      /(?:review\s+score|guest\s+review)[:\s]*(\d{1,2}(?:\.\d)?)/i,
+      /(?:scored?)\s+(\d{1,2}(?:\.\d)?)\s/i,
+    ];
+    for (const p of bookingPatterns) {
+      const m = text.match(p);
+      if (m?.[1]) {
+        const n = Number(m[1]);
+        if (Number.isFinite(n) && n > 0 && n <= 10) {
+          // Convert to 5-point scale
+          return Math.round((n / 2) * 10) / 10;
+        }
+      }
+    }
+  }
+
   const patterns: RegExp[] = [
     /([0-5](?:\.[0-9])?)\s*(?:\/\s*5|out\s+of\s+5|stars?)/i,
     /rated\s*([0-5](?:\.[0-9])?)\s*(?:\/\s*5|out\s+of\s+5|stars?)/i,
@@ -525,13 +545,13 @@ serve(async (req) => {
            const batchResults = await Promise.all(batch.map(async (t) => {
              const markdown = await firecrawlScrapeMarkdown(t.url, FIRECRAWL_API_KEY);
              if (!markdown) return null;
-             return {
-               platform: t.platform,
-               url: t.url,
-               rawContent: markdown.substring(0, 5000),
-               rating: extractRatingFromText(markdown) ?? undefined,
-               reviewCount: extractReviewCountFromText(markdown) ?? undefined,
-             } satisfies ScrapedPlatformData;
+              return {
+                platform: t.platform,
+                url: t.url,
+                rawContent: markdown.substring(0, 5000),
+                rating: extractRatingFromText(markdown, t.platform) ?? undefined,
+                reviewCount: extractReviewCountFromText(markdown) ?? undefined,
+              } satisfies ScrapedPlatformData;
            }));
            for (const r of batchResults) {
              if (r) scrapedData.push(r);
@@ -553,30 +573,99 @@ serve(async (req) => {
       throw error;
     }
 
-     // If Perplexity didn't return all platforms OR returned questionable counts, fill remaining with non-fabricated placeholders.
-     platforms = ensureAllPlatforms(platforms || [], totalCompetitors);
-
-     // Final reconciliation (in case Perplexity missed a platform but scraping did find a count)
-     if (scrapedData.length) {
-       const byPlatform = new Map(scrapedData.map(s => [s.platform, s] as const));
-       platforms = platforms.map((p) => {
-         const s = byPlatform.get(p.platform);
-         if (!s) return p;
-         const rating = s.rating ?? p.hotelMetrics.rating;
-         const reviewCount = s.reviewCount ?? p.hotelMetrics.reviewCount;
-         const listingFound = Boolean(s.url);
-         const status = listingFound ? p.status : (p.hotelMetrics.reviewCount == null && p.hotelMetrics.rating == null ? 'not_listed' : p.status);
-         return {
-           ...p,
-           status,
-           hotelMetrics: {
-             ...p.hotelMetrics,
-             rating,
-             reviewCount,
+     // Step 3: Dedicated Booking.com verification via Perplexity if scraped data is missing
+     const bookingScraped = scrapedData.find(s => s.platform === 'booking');
+     const bookingPlatform = platforms.find(p => p.platform === 'booking');
+     const bookingNeedsVerification = !bookingScraped?.rating && !bookingScraped?.reviewCount;
+     
+     if (bookingNeedsVerification && PERPLEXITY_API_KEY) {
+       try {
+         console.log('Running dedicated Booking.com lookup for', hotel.name);
+         const bookingRes = await fetch('https://api.perplexity.ai/chat/completions', {
+           method: 'POST',
+           headers: {
+             'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+             'Content-Type': 'application/json',
            },
-         };
-       });
+           body: JSON.stringify({
+             model: 'sonar',
+             temperature: 0.1,
+             messages: [
+               {
+                 role: 'system',
+                 content: `Return ONLY valid JSON with the Booking.com data for the given hotel. Booking.com rates on a scale of 1-10.
+Schema: { "rating_out_of_10": <number or null>, "review_count": <number or null>, "listing_url": "<url or null>", "search_position": <number or null> }
+Only report data you can verify from Booking.com. If the hotel is not listed, return nulls.`,
+               },
+               {
+                 role: 'user',
+                 content: `Find the Booking.com listing for: ${hotel.name}, ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}. What is the guest review score (out of 10) and total number of reviews?`,
+               },
+             ],
+           }),
+         });
+
+         if (bookingRes.ok) {
+           const bookingData = await bookingRes.json();
+           const bookingContent = bookingData.choices?.[0]?.message?.content || '';
+           try {
+             const parsed = JSON.parse(bookingContent);
+             const ratingOut10 = parsed.rating_out_of_10;
+             const reviewCount = parsed.review_count;
+             const listingUrl = parsed.listing_url;
+             const searchPosition = parsed.search_position;
+
+             if (ratingOut10 != null || reviewCount != null) {
+               const rating5 = ratingOut10 != null ? Math.round((ratingOut10 / 2) * 10) / 10 : null;
+               console.log(`Booking.com verified: rating=${ratingOut10}/10 (${rating5}/5), reviews=${reviewCount}`);
+               
+               // Update the booking platform entry
+               platforms = platforms.map(p => {
+                 if (p.platform !== 'booking') return p;
+                 const newRating = rating5 ?? p.hotelMetrics.rating;
+                 const newReviewCount = reviewCount ?? p.hotelMetrics.reviewCount;
+                 const listed = newRating != null || newReviewCount != null;
+                 return {
+                   ...p,
+                   status: listed ? (p.status === 'not_listed' ? 'competitive' : p.status) : p.status,
+                   hotelMetrics: {
+                     ...p.hotelMetrics,
+                     rating: newRating,
+                     reviewCount: newReviewCount,
+                     bookingRank: searchPosition ?? p.hotelMetrics.bookingRank,
+                   },
+                 };
+               });
+             }
+           } catch { console.error('Failed to parse Booking.com dedicated lookup'); }
+         }
+       } catch (e) { console.error('Booking.com dedicated lookup error:', e); }
      }
+
+      // If Perplexity didn't return all platforms OR returned questionable counts, fill remaining with non-fabricated placeholders.
+      platforms = ensureAllPlatforms(platforms || [], totalCompetitors);
+
+      // Final reconciliation (in case Perplexity missed a platform but scraping did find a count)
+      if (scrapedData.length) {
+        const byPlatform = new Map(scrapedData.map(s => [s.platform, s] as const));
+        platforms = platforms.map((p) => {
+          const s = byPlatform.get(p.platform);
+          if (!s) return p;
+          const rating = s.rating ?? p.hotelMetrics.rating;
+          const reviewCount = s.reviewCount ?? p.hotelMetrics.reviewCount;
+          const listingFound = Boolean(s.url);
+          const status = listingFound ? p.status : (p.hotelMetrics.reviewCount == null && p.hotelMetrics.rating == null ? 'not_listed' : p.status);
+          return {
+            ...p,
+            status,
+            hotelMetrics: {
+              ...p.hotelMetrics,
+              rating,
+              reviewCount,
+            },
+          };
+        });
+      }
 
     console.log('OTA analysis complete:', platforms.length, 'platforms analyzed');
 
