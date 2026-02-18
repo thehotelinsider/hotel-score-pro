@@ -13,6 +13,8 @@ interface Hotel {
   country: string;
   rating: number;
   priceLevel: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface Competitor {
@@ -27,13 +29,12 @@ interface Competitor {
   city: string;
   state: string;
   locationType?: string;
+  googlePlaceId?: string;
+  verified: boolean;
 }
 
 /**
  * Structure-aware JSON sanitizer.
- * Iterates character-by-character, tracking whether we're inside a JSON string.
- * Only escapes raw control characters (tab, newline, carriage return, etc.) when
- * they appear INSIDE a string — leaving structural whitespace between JSON tokens intact.
  */
 function sanitizeJsonControlChars(raw: string): string {
   let inString = false;
@@ -63,17 +64,186 @@ function sanitizeJsonControlChars(raw: string): string {
     }
 
     if (inString) {
-      // Inside a JSON string: raw control characters are illegal — escape them
-      if (code === 0x0A) { result += '\\n'; continue; }  // newline
-      if (code === 0x0D) { result += '\\r'; continue; }  // carriage return
-      if (code === 0x09) { result += '\\t'; continue; }  // tab
-      if (code < 0x20 || code === 0x7F) { continue; }    // drop other control chars
+      if (code === 0x0A) { result += '\\n'; continue; }
+      if (code === 0x0D) { result += '\\r'; continue; }
+      if (code === 0x09) { result += '\\t'; continue; }
+      if (code < 0x20 || code === 0x7F) { continue; }
     }
 
     result += char;
   }
 
   return result;
+}
+
+/** Haversine distance in miles between two lat/lng pairs */
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Verify a competitor hotel exists using the Google Places Text Search API.
+ * Returns the place data if found within maxDistanceMiles of the subject hotel center,
+ * otherwise returns null (hotel does not exist / is not in the right area).
+ */
+async function verifyHotelWithGooglePlaces(
+  hotelName: string,
+  city: string,
+  state: string,
+  googleApiKey: string,
+  subjectLat: number,
+  subjectLng: number,
+  maxDistanceMiles = 5
+): Promise<{ name: string; address: string; rating: number; placeId: string; lat: number; lng: number; distance: number } | null> {
+  try {
+    const query = encodeURIComponent(`${hotelName} hotel ${city} ${state}`);
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&type=lodging&key=${googleApiKey}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`Google Places API error for "${hotelName}": ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.results || data.results.length === 0) {
+      console.log(`Google Places: No results found for "${hotelName}" in ${city}, ${state} — REJECTED`);
+      return null;
+    }
+
+    // Check each result to find one that matches close enough to the subject hotel
+    for (const place of data.results) {
+      const placeName: string = place.name || '';
+      const placeAddress: string = place.formatted_address || '';
+      const placeLat: number = place.geometry?.location?.lat;
+      const placeLng: number = place.geometry?.location?.lng;
+
+      if (!placeLat || !placeLng) continue;
+
+      // Distance from subject hotel
+      const distanceMiles = haversineDistance(subjectLat, subjectLng, placeLat, placeLng);
+
+      // Must be within the distance limit
+      if (distanceMiles > maxDistanceMiles) {
+        console.log(`Google Places: "${placeName}" is ${distanceMiles.toFixed(1)} miles away — too far, skipping`);
+        continue;
+      }
+
+      // Name similarity check — the returned place name must be reasonably close to what was requested
+      const requestedLower = hotelName.toLowerCase();
+      const returnedLower = placeName.toLowerCase();
+
+      // Extract brand and location keywords for loose matching
+      const brandMatch = (
+        requestedLower.includes('marriott') && returnedLower.includes('marriott') ||
+        requestedLower.includes('hilton') && returnedLower.includes('hilton') ||
+        requestedLower.includes('hyatt') && returnedLower.includes('hyatt') ||
+        requestedLower.includes('ihg') && returnedLower.includes('ihg') ||
+        requestedLower.includes('holiday inn') && returnedLower.includes('holiday inn') ||
+        requestedLower.includes('courtyard') && returnedLower.includes('courtyard') ||
+        requestedLower.includes('residence inn') && returnedLower.includes('residence inn') ||
+        requestedLower.includes('hampton') && returnedLower.includes('hampton') ||
+        requestedLower.includes('homewood') && returnedLower.includes('homewood') ||
+        requestedLower.includes('towneplace') && returnedLower.includes('towneplace') ||
+        requestedLower.includes('fairfield') && returnedLower.includes('fairfield') ||
+        requestedLower.includes('springhill') && returnedLower.includes('springhill') ||
+        requestedLower.includes('embassy') && returnedLower.includes('embassy') ||
+        requestedLower.includes('doubletree') && returnedLower.includes('doubletree') ||
+        requestedLower.includes('best western') && returnedLower.includes('best western') ||
+        requestedLower.includes('comfort') && returnedLower.includes('comfort') ||
+        requestedLower.includes('candlewood') && returnedLower.includes('candlewood') ||
+        requestedLower.includes('staybridge') && returnedLower.includes('staybridge') ||
+        requestedLower.includes('aloft') && returnedLower.includes('aloft') ||
+        requestedLower.includes('westin') && returnedLower.includes('westin') ||
+        requestedLower.includes('sheraton') && returnedLower.includes('sheraton') ||
+        requestedLower.includes('wyndham') && returnedLower.includes('wyndham') ||
+        requestedLower.includes('radisson') && returnedLower.includes('radisson') ||
+        requestedLower.includes('la quinta') && returnedLower.includes('la quinta')
+      );
+
+      // Also check if a significant word from the requested name appears in the returned name
+      const requestedWords = requestedLower.split(/\s+/).filter(w => w.length > 3);
+      const wordOverlap = requestedWords.some(w => returnedLower.includes(w));
+
+      if (!brandMatch && !wordOverlap) {
+        console.log(`Google Places: Name mismatch — requested "${hotelName}", got "${placeName}" — REJECTED`);
+        continue;
+      }
+
+      // Verify address contains the right state
+      const addressUpper = placeAddress.toUpperCase();
+      if (!addressUpper.includes(state.toUpperCase()) && !addressUpper.includes(city.toUpperCase())) {
+        console.log(`Google Places: "${placeName}" address "${placeAddress}" doesn't match ${city}, ${state} — REJECTED`);
+        continue;
+      }
+
+      console.log(`Google Places: VERIFIED "${placeName}" at "${placeAddress}" (${distanceMiles.toFixed(1)} mi from subject)`);
+
+      return {
+        name: place.name,
+        address: place.formatted_address,
+        rating: place.rating || 0,
+        placeId: place.place_id,
+        lat: placeLat,
+        lng: placeLng,
+        distance: Math.round(distanceMiles * 10) / 10,
+      };
+    }
+
+    console.log(`Google Places: No valid match for "${hotelName}" within ${maxDistanceMiles} miles — REJECTED`);
+    return null;
+  } catch (err) {
+    console.error(`Error verifying "${hotelName}" with Google Places:`, err);
+    return null;
+  }
+}
+
+/**
+ * Get the lat/lng for the subject hotel from Google Places.
+ */
+async function getHotelCoordinates(
+  hotelName: string,
+  address: string,
+  city: string,
+  state: string,
+  googleApiKey: string
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const query = encodeURIComponent(`${hotelName} ${address} ${city} ${state}`);
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&type=lodging&key=${googleApiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.results?.[0]?.geometry?.location) {
+      const { lat, lng } = data.results[0].geometry.location;
+      console.log(`Subject hotel coordinates: ${lat}, ${lng}`);
+      return { lat, lng };
+    }
+
+    // Fallback: geocode the city
+    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(`${city}, ${state}`)}&key=${googleApiKey}`;
+    const geoResponse = await fetch(geocodeUrl);
+    const geoData = await geoResponse.json();
+
+    if (geoData.results?.[0]?.geometry?.location) {
+      const { lat, lng } = geoData.results[0].geometry.location;
+      console.log(`Fallback city coordinates: ${lat}, ${lng}`);
+      return { lat, lng };
+    }
+
+    return null;
+  } catch (err) {
+    console.error('Error getting hotel coordinates:', err);
+    return null;
+  }
 }
 
 function classifyHotel(hotel: Hotel) {
@@ -126,35 +296,6 @@ function classifyHotel(hotel: Hotel) {
   return { locationType, hotelType, starLevel };
 }
 
-async function scrapeTripAdvisorPage(url: string, firecrawlKey: string): Promise<string | null> {
-  try {
-    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${firecrawlKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url,
-        formats: ['markdown'],
-        onlyMainContent: true,
-        waitFor: 3000,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('Firecrawl scrape failed:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.data?.markdown || data.markdown || null;
-  } catch (err) {
-    console.error('Firecrawl error:', err);
-    return null;
-  }
-}
-
 // Known cities/areas within ~100 miles of Knoxville, TN
 const KNOXVILLE_AREA_CITIES = new Set([
   'knoxville', 'gatlinburg', 'pigeon forge', 'sevierville', 'oak ridge',
@@ -162,13 +303,12 @@ const KNOXVILLE_AREA_CITIES = new Set([
   'clinton', 'newport', 'greeneville', 'jefferson city', 'harriman',
   'kingston', 'rockwood', 'crossville', 'lafollette', 'jellico',
   'johnson city', 'kingsport', 'bristol', 'elizabethton', 'erwin',
-  'asheville', 'waynesville', 'sylva', // nearby NC cities
+  'asheville', 'waynesville', 'sylva',
 ]);
 
 function isInKnoxvilleArea(city: string, state: string): boolean {
   const cityLower = (city || '').toLowerCase().trim();
   const stateUpper = (state || '').toUpperCase().trim();
-  // Must be in TN or the NC border area
   if (stateUpper !== 'TN' && stateUpper !== 'NC') return false;
   return KNOXVILLE_AREA_CITIES.has(cityLower);
 }
@@ -190,7 +330,7 @@ serve(async (req) => {
 
     // Guard: subject hotel must be within the Knoxville, TN service area
     if (!isInKnoxvilleArea(hotel.city, hotel.state)) {
-      console.warn(`Subject hotel "${hotel.name}" in ${hotel.city}, ${hotel.state} is outside the Knoxville, TN service area — aborting competitor search.`);
+      console.warn(`Subject hotel "${hotel.name}" in ${hotel.city}, ${hotel.state} is outside the Knoxville, TN service area.`);
       return new Response(
         JSON.stringify({ competitors: [], error: 'Hotel is outside the supported geographic area (Knoxville, TN and surroundings).' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -200,16 +340,28 @@ serve(async (req) => {
     console.log(`Finding competitors for: ${hotel.name} in ${hotel.city}, ${hotel.state}`);
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
 
-    if (!PERPLEXITY_API_KEY) {
-      throw new Error('PERPLEXITY_API_KEY is not configured');
-    }
+    if (!PERPLEXITY_API_KEY) throw new Error('PERPLEXITY_API_KEY is not configured');
+    if (!GOOGLE_PLACES_API_KEY) throw new Error('GOOGLE_PLACES_API_KEY is not configured');
 
     const { locationType, hotelType, starLevel } = classifyHotel(hotel);
     console.log(`Classification: ${locationType}, ${hotelType}, ${starLevel}`);
 
-    // Step 1: Use Perplexity to find the subject hotel's TripAdvisor page and competitors
+    // Step 1: Get the subject hotel's exact coordinates so we can measure real distances
+    const subjectCoords = hotel.lat && hotel.lng
+      ? { lat: hotel.lat, lng: hotel.lng }
+      : await getHotelCoordinates(hotel.name, hotel.address, hotel.city, hotel.state, GOOGLE_PLACES_API_KEY);
+
+    if (!subjectCoords) {
+      console.error('Could not determine subject hotel coordinates — aborting competitor search');
+      return new Response(
+        JSON.stringify({ competitors: [], error: 'Could not locate the subject hotel on Google Maps.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Step 2: Ask Perplexity for candidate competitor hotel names
     const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -221,70 +373,52 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a hotel market analyst. Find REAL TripAdvisor Travelers' Choice rankings and competitor data.
+            content: `You are a hotel market analyst. Your ONLY job is to identify REAL, currently-operating competitor hotels near a subject hotel.
 
-ABSOLUTELY CRITICAL: Every hotel you return MUST be a REAL, currently operational hotel that EXISTS today and can be booked online (on Booking.com, Expedia, Marriott.com, Hilton.com, etc.). 
-- Do NOT invent, fabricate, or guess hotel names. 
-- Do NOT combine a brand name with a location to create a hotel that doesn't exist (e.g., "TownePlace Suites Downtown Knoxville" does NOT exist — do not include it).
-- If you are not 100% certain a hotel exists and is currently open for business, DO NOT include it.
-- Use only hotels you can verify from real TripAdvisor listings, Google Maps, or OTA search results.
+CRITICAL — EXISTENCE RULE:
+- Every hotel name you return will be verified against Google Maps. If it does not exist on Google Maps within 5 miles of the subject hotel, it will be REJECTED.
+- Do NOT invent or guess hotel names. Only return hotels you have seen on Google Maps, TripAdvisor, Booking.com, or Expedia.
+- Do NOT combine brand names with locations to create hotels that might not exist (e.g., "TownePlace Suites Knoxville Downtown" — if you have not seen it listed, do not include it).
+- Only include hotels you are highly confident exist and are currently open for business.
 
-LOCATION RULE — THIS IS THE MOST IMPORTANT RULE:
-- This application ONLY operates within Knoxville, TN and its surrounding areas (within ~100 miles).
-- ALL competitors MUST be in the EXACT SAME CITY as the subject hotel.
-- If the subject hotel is in "${hotel.city}, ${hotel.state}", every competitor MUST also be in "${hotel.city}, ${hotel.state}".
-- Do NOT include hotels from neighboring cities, suburbs, or different municipalities.
-- Do NOT include hotels from a different sub-market (e.g., if subject is downtown, competitors must also be downtown).
-- Do NOT include hotels from outside the Knoxville, TN area regardless of similarity.
+LOCATION RULE:
+- ALL competitors must be in ${hotel.city}, ${hotel.state} — the exact same city.
+- All competitors must be within 5 miles of "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}.
+- Same sub-market required: if the subject is downtown, competitors must also be downtown.
 
-Return ONLY valid JSON with this structure:
+BRAND RULE:
+- Do NOT include "${hotel.name}" itself.
+- Similar hotel tier preferred (${starLevel}, ${hotelType}).
+
+Return ONLY valid JSON:
 {
-  "subjectHotel": {
-    "tripadvisorUrl": "<TripAdvisor URL for the subject hotel>",
-    "tripadvisorRank": <number - Travelers' Choice rank in the city, e.g. #5 of 120 hotels>,
-    "totalHotelsInCity": <total hotels on TripAdvisor in this city>,
-    "starLevel": <2-5 star level of the subject hotel>
-  },
-  "competitors": [
+  "candidates": [
     {
-      "name": "<exact real hotel name as listed on TripAdvisor or Google>",
-      "tripadvisorUrl": "<real TripAdvisor URL that resolves to this hotel's page>",
-      "tripadvisorRank": <Travelers' Choice rank in the city>,
-      "starLevel": <2-5>,
-      "rating": <Google rating 1-5>,
-      "distance": <miles from subject hotel>,
+      "name": "<exact hotel name as it appears on Google Maps or TripAdvisor>",
       "address": "<real street address>",
       "city": "${hotel.city}",
       "state": "${hotel.state}",
-      "locationType": "<downtown/airport/highway/suburban/resort>"
+      "tripadvisorRank": <integer or null>,
+      "starLevel": <2-5>,
+      "locationType": "<downtown|airport|highway|suburban|resort>"
     }
   ]
 }
 
-CRITICAL RULES:
-1. ONLY include hotels that ACTUALLY EXIST and are CURRENTLY OPEN for business — verify each one
-2. ONLY include hotels in "${hotel.city}, ${hotel.state}" — the EXACT same city, NO exceptions
-3. ONLY include hotels in the SAME sub-market/location type as the subject hotel
-4. ONLY include hotels with similar star level (within 1 star)
-5. ONLY include hotels within 5 miles
-6. Use REAL TripAdvisor Travelers' Choice rankings (the "# of N hotels" ranking on TripAdvisor)
-7. Include exactly 4 competitors (no more, no less)
-8. Sort by star level (highest first), then by TripAdvisor Travelers' Choice rank
-9. Use the EXACT hotel name as it appears on TripAdvisor or Google — do not paraphrase or fabricate names
-10. Include the starLevel for the subject hotel in the subjectHotel object`
+Include 8-10 candidates so that after verification some may be filtered out but 4 remain.`
           },
           {
             role: 'user',
-            content: `Find the TripAdvisor Travelers' Choice ranking for "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}.
+            content: `Find 8-10 REAL competitor hotels for "${hotel.name}" located at ${hotel.address}, ${hotel.city}, ${hotel.state}.
 
-Then find exactly 4 REAL competitor hotels that are:
-1. In the ${locationType} area (same sub-market/neighborhood)
-2. Similar to ${starLevel} (${hotelType})
-3. Within 5 miles of the subject hotel
-4. Ranked by their TripAdvisor Travelers' Choice position in ${hotel.city}
-5. VERIFIED to exist and be currently operational — each hotel must be bookable on major OTAs or brand websites
+Requirements:
+- Same city: ${hotel.city}, ${hotel.state}
+- Same sub-market: ${locationType}
+- Similar tier: ${starLevel} (${hotelType})
+- Within 5 miles
+- Must be real hotels currently operating and listed on Google Maps
 
-IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operating property with a verifiable TripAdvisor listing. Include each hotel's real TripAdvisor URL and Travelers' Choice rank.`
+Only return hotels you are certain exist. These will be validated against Google Maps — fabricated names will be discarded.`
           }
         ],
       }),
@@ -302,137 +436,168 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
 
     const perplexityData = await perplexityResponse.json();
     const content = perplexityData.choices?.[0]?.message?.content || '';
-    const citations = perplexityData.citations || [];
-    console.log('Perplexity response received, citations:', citations.length);
+    console.log('Perplexity raw response snippet:', content.slice(0, 400));
 
-    // Parse the Perplexity response
-    let parsedData: any = null;
+    // Parse candidate list
+    let candidates: any[] = [];
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        // Structure-aware sanitizer: only escape control characters that appear
-        // INSIDE JSON string values. Replacing them globally breaks structural
-        // newlines between JSON tokens, which causes JSON.parse to fail.
         const sanitized = sanitizeJsonControlChars(jsonMatch[0]);
-        parsedData = JSON.parse(sanitized);
-        console.log(`Parsed ${parsedData?.competitors?.length ?? 0} raw competitors from Perplexity`);
+        const parsed = JSON.parse(sanitized);
+        candidates = parsed.candidates || parsed.competitors || [];
+        console.log(`Perplexity returned ${candidates.length} candidate hotels`);
       } else {
-        console.warn('No JSON object found in Perplexity response. Snippet:', content.slice(0, 300));
+        console.warn('No JSON found in Perplexity response');
       }
     } catch (parseError) {
       console.error('Failed to parse Perplexity response:', parseError);
-      console.error('Raw content snippet:', content.slice(0, 500));
     }
 
-    let competitors: Competitor[] = [];
-    let subjectHotelTAUrl: string | null = null;
-    let subjectHotelTARank: number | null = null;
-    let subjectHotelStarLevel: number | null = null;
+    // Step 3: Validate EVERY candidate against Google Places API
+    // Only hotels that Google can confirm exist within 5 miles are accepted
+    console.log(`Verifying ${candidates.length} candidates against Google Places API...`);
 
-    if (parsedData) {
-      subjectHotelTAUrl = parsedData.subjectHotel?.tripadvisorUrl || null;
-      subjectHotelTARank = parsedData.subjectHotel?.tripadvisorRank || null;
-      subjectHotelStarLevel = typeof parsedData.subjectHotel?.starLevel === 'number' ? parsedData.subjectHotel.starLevel : null;
+    const verifiedCompetitors: Competitor[] = [];
 
-      competitors = (parsedData.competitors || []).map((c: any, index: number) => ({
+    for (const candidate of candidates) {
+      if (verifiedCompetitors.length >= 4) break; // We only need 4
+
+      const candidateName: string = candidate.name || '';
+      const candidateCity: string = candidate.city || hotel.city;
+      const candidateState: string = candidate.state || hotel.state;
+
+      if (!candidateName) continue;
+
+      // Skip if it's the subject hotel itself
+      if (candidateName.toLowerCase().trim() === hotel.name.toLowerCase().trim()) {
+        console.log(`Skipping subject hotel: ${candidateName}`);
+        continue;
+      }
+
+      // Quick city/state pre-check before hitting the API
+      if (
+        candidateCity.toLowerCase().trim() !== hotel.city.toLowerCase().trim() ||
+        candidateState.toUpperCase().trim() !== hotel.state.toUpperCase().trim()
+      ) {
+        console.log(`Pre-filter rejected "${candidateName}" — wrong city: ${candidateCity}, ${candidateState}`);
+        continue;
+      }
+
+      // Verify via Google Places — this is the authoritative existence check
+      const verified = await verifyHotelWithGooglePlaces(
+        candidateName,
+        candidateCity,
+        candidateState,
+        GOOGLE_PLACES_API_KEY,
+        subjectCoords.lat,
+        subjectCoords.lng,
+        5 // max 5 miles from subject hotel
+      );
+
+      if (!verified) {
+        // Hotel could not be confirmed — reject it
+        console.log(`REJECTED (not found on Google Maps): "${candidateName}"`);
+        continue;
+      }
+
+      console.log(`ACCEPTED: "${verified.name}" at "${verified.address}" — ${verified.distance} mi away`);
+
+      verifiedCompetitors.push({
         id: crypto.randomUUID(),
-        name: c.name || `Competitor ${index + 1}`,
-        rating: typeof c.rating === 'number' ? c.rating : 4.0,
-        tripadvisorRank: typeof c.tripadvisorRank === 'number' ? c.tripadvisorRank : null,
-        starLevel: typeof c.starLevel === 'number' ? c.starLevel : 3,
-        rank: index + 1,
-        distance: typeof c.distance === 'number' ? c.distance : (index + 1) * 0.5,
-        address: c.address || '',
-        city: c.city || hotel.city,
-        state: c.state || hotel.state,
-        locationType: c.locationType || locationType,
-        tripadvisorUrl: c.tripadvisorUrl || null,
-      }));
+        name: verified.name, // Use the name as Google knows it (corrected spelling, etc.)
+        rating: verified.rating || (typeof candidate.rating === 'number' ? candidate.rating : 4.0),
+        tripadvisorRank: typeof candidate.tripadvisorRank === 'number' ? candidate.tripadvisorRank : undefined,
+        starLevel: typeof candidate.starLevel === 'number' ? candidate.starLevel : 3,
+        rank: verifiedCompetitors.length + 1,
+        distance: verified.distance,
+        address: verified.address,
+        city: candidateCity,
+        state: candidateState,
+        locationType: candidate.locationType || locationType,
+        googlePlaceId: verified.placeId,
+        verified: true,
+      });
     }
 
-    // Step 2: Use Firecrawl to verify TripAdvisor rankings from actual pages
-    if (FIRECRAWL_API_KEY && (subjectHotelTAUrl || competitors.some((c: any) => c.tripadvisorUrl))) {
-      console.log('Verifying TripAdvisor rankings via Firecrawl...');
+    // Sort by star level (highest first), then reassign ranks
+    const sortedCompetitors = verifiedCompetitors
+      .sort((a, b) => (b.starLevel || 3) - (a.starLevel || 3))
+      .map((c, index) => ({ ...c, rank: index + 1 }));
 
-      // Scrape subject hotel's TripAdvisor page
-      if (subjectHotelTAUrl) {
-        const subjectMarkdown = await scrapeTripAdvisorPage(subjectHotelTAUrl, FIRECRAWL_API_KEY);
-        if (subjectMarkdown) {
-          // Extract rank from TripAdvisor page content (e.g., "#5 of 120 hotels")
-          const rankMatch = subjectMarkdown.match(/#(\d+)\s+of\s+\d+\s+hotel/i);
-          if (rankMatch) {
-            subjectHotelTARank = parseInt(rankMatch[1]);
-            console.log(`Verified subject hotel TripAdvisor rank: #${subjectHotelTARank}`);
-          }
+    console.log(`Final verified competitors (${sortedCompetitors.length}):`,
+      sortedCompetitors.map(c => `${c.name} — ${c.city}, ${c.state} (${c.distance} mi)`).join(' | '));
+
+    // If we got fewer than 4, try a broader Google Places nearby search as fallback
+    let finalCompetitors = sortedCompetitors;
+    if (finalCompetitors.length < 4) {
+      console.log(`Only ${finalCompetitors.length} verified. Attempting Google Places nearby search fallback...`);
+      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${subjectCoords.lat},${subjectCoords.lng}&radius=8047&type=lodging&key=${GOOGLE_PLACES_API_KEY}`;
+
+      try {
+        const nearbyResponse = await fetch(nearbyUrl);
+        const nearbyData = await nearbyResponse.json();
+        const nearbyPlaces = nearbyData.results || [];
+        console.log(`Google Places nearby search returned ${nearbyPlaces.length} lodging results`);
+
+        for (const place of nearbyPlaces) {
+          if (finalCompetitors.length >= 4) break;
+
+          const placeName: string = place.name || '';
+          const placeAddress: string = place.formatted_address || place.vicinity || '';
+          const placeRating: number = place.rating || 4.0;
+          const placeLat: number = place.geometry?.location?.lat;
+          const placeLng: number = place.geometry?.location?.lng;
+
+          if (!placeName || !placeLat || !placeLng) continue;
+
+          // Skip subject hotel
+          if (placeName.toLowerCase().trim() === hotel.name.toLowerCase().trim()) continue;
+
+          // Skip already accepted
+          if (finalCompetitors.some(c => c.name.toLowerCase() === placeName.toLowerCase())) continue;
+
+          // Must contain the city name in address
+          if (!placeAddress.toUpperCase().includes(hotel.city.toUpperCase()) &&
+              !placeAddress.toUpperCase().includes(hotel.state.toUpperCase())) continue;
+
+          const distanceMiles = haversineDistance(subjectCoords.lat, subjectCoords.lng, placeLat, placeLng);
+          if (distanceMiles > 5) continue;
+
+          console.log(`Fallback ACCEPTED from nearby search: "${placeName}" (${distanceMiles.toFixed(1)} mi)`);
+
+          finalCompetitors.push({
+            id: crypto.randomUUID(),
+            name: placeName,
+            rating: placeRating,
+            tripadvisorRank: undefined,
+            starLevel: 3,
+            rank: finalCompetitors.length + 1,
+            distance: Math.round(distanceMiles * 10) / 10,
+            address: placeAddress,
+            city: hotel.city,
+            state: hotel.state,
+            locationType,
+            googlePlaceId: place.place_id,
+            verified: true,
+          });
         }
+
+        // Re-sort and re-rank after fallback additions
+        finalCompetitors = finalCompetitors
+          .sort((a, b) => (b.starLevel || 3) - (a.starLevel || 3))
+          .map((c, index) => ({ ...c, rank: index + 1 }));
+      } catch (nearbyErr) {
+        console.error('Google Places nearby search fallback failed:', nearbyErr);
       }
-
-      // Scrape top competitor TripAdvisor pages in parallel (limit to 4 to avoid rate limits)
-      const scrapePromises = competitors
-        .filter((c: any) => c.tripadvisorUrl)
-        .slice(0, 4)
-        .map(async (comp: any) => {
-          const markdown = await scrapeTripAdvisorPage(comp.tripadvisorUrl, FIRECRAWL_API_KEY);
-          if (markdown) {
-            const rankMatch = markdown.match(/#(\d+)\s+of\s+\d+\s+hotel/i);
-            if (rankMatch) {
-              comp.tripadvisorRank = parseInt(rankMatch[1]);
-              console.log(`Verified ${comp.name} TripAdvisor rank: #${comp.tripadvisorRank}`);
-            }
-            // Also try to extract rating
-            const ratingMatch = markdown.match(/(\d\.\d)\s+of\s+5\s+bubbles/i) ||
-                                markdown.match(/(\d\.\d)\s+out\s+of\s+5/i);
-            if (ratingMatch) {
-              comp.rating = parseFloat(ratingMatch[1]);
-            }
-          }
-        });
-
-      await Promise.all(scrapePromises);
     }
-
-    // Log what Perplexity returned before filtering so we can see any wrong-city data
-    console.log(`Pre-filter competitors (${competitors.length}):`, competitors.map((c: any) => `${c.name} — ${c.city}, ${c.state}`).join(' | '));
-
-    // Post-processing safety check: same city AND same state AND within Knoxville service area
-    const hotelCityLower = hotel.city.toLowerCase().trim();
-    const hotelStateUpper = (hotel.state || '').toUpperCase().trim();
-    competitors = competitors.filter((c: any) => {
-      const compCity = (c.city || '').toLowerCase().trim();
-      const compState = (c.state || '').toUpperCase().trim();
-      const sameCity = compCity === hotelCityLower;
-      const sameState = compState === hotelStateUpper;
-      const inServiceArea = isInKnoxvilleArea(c.city, c.state);
-      if (!sameCity || !sameState || !inServiceArea) {
-        console.log(`Filtered competitor out of area: ${c.name} in ${c.city}, ${c.state}`);
-        return false;
-      }
-      return true;
-    });
-
-    // If no star level from Perplexity, infer from classification
-    if (!subjectHotelStarLevel) {
-      const starMatch = starLevel.match(/(\d)/);
-      subjectHotelStarLevel = starMatch ? parseInt(starMatch[1]) : 3;
-    }
-
-    // Sort competitors by Star Rating only (highest star level first)
-    competitors = competitors
-      .sort((a: any, b: any) => {
-        return (b.starLevel || 3) - (a.starLevel || 3);
-      })
-      .map((c, index) => ({ ...c, rank: index + 1 }))
-      .slice(0, 4);
-
-    // Attach the subject hotel's TripAdvisor rank and star level to the response
-    console.log(`Found ${competitors.length} competitors. Subject hotel TA rank: ${subjectHotelTARank}, star level: ${subjectHotelStarLevel}`);
 
     return new Response(
       JSON.stringify({
-        competitors,
-        citations,
-        subjectHotelTripadvisorRank: subjectHotelTARank,
-        subjectHotelStarLevel,
+        competitors: finalCompetitors,
+        citations: perplexityData.citations || [],
+        subjectHotelTripadvisorRank: null,
+        subjectHotelStarLevel: null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
