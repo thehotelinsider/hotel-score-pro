@@ -143,9 +143,6 @@ async function scrapeProfile(url: string, apiKey: string): Promise<string | null
 function extractFollowerCount(markdown: string, platform: string): number | null {
   if (!markdown) return null;
 
-  const text = markdown.toLowerCase();
-
-  // Platform-specific patterns
   const patterns: RegExp[] = [];
 
   if (platform === 'facebook') {
@@ -212,57 +209,171 @@ function parseFollowerNumber(raw: string): number | null {
   return Math.round(num * multiplier);
 }
 
-// Step 4: Use AI to extract follower count from scraped content as fallback
-async function extractWithAI(
-  markdown: string,
-  platform: string,
-  hotelName: string,
-  apiKey: string
-): Promise<number | null> {
-  // Only use first 3000 chars to save tokens
-  const snippet = markdown.slice(0, 3000);
+// Step 4: Use AI (Lovable AI gateway) to synthesize all social media metrics
+async function synthesizeSocialMetricsWithAI(
+  hotel: Hotel,
+  competitors: Competitor[],
+  followerData: Record<string, { count: number | null; source: 'scraped' | 'searched' | 'estimated' }>,
+  profileUrls: Record<string, string>,
+  lovableApiKey: string
+): Promise<SocialPlatformMetrics[]> {
+  const totalCompetitors = (competitors?.length || 3) + 1;
+  const competitorNames = competitors?.slice(0, 5).map(c => c.name).join(', ') || 'local competitors';
+  const allPlatforms = ['facebook', 'instagram', 'tiktok', 'youtube', 'linkedin'];
+
+  const followerSummary = allPlatforms.map(p => {
+    const fd = followerData[p];
+    return `${p}: ${fd?.count ?? 'unknown'} followers (source: ${fd?.source ?? 'none'}, has profile URL: ${!!profileUrls[p]})`;
+  }).join('\n');
+
+  const prompt = `You are a hotel social media analyst. Analyze the social media presence of "${hotel.name}" in ${hotel.city || 'unknown'}${hotel.state ? `, ${hotel.state}` : ''} compared to its competitors: ${competitorNames}.
+
+Known follower data for "${hotel.name}":
+${followerSummary}
+
+Total competitors in analysis: ${totalCompetitors}
+
+For each of the 5 platforms (facebook, instagram, tiktok, youtube, linkedin), provide realistic, data-informed estimates. Use the known follower counts where available, and make reasonable estimates for platforms where we have no data (mark those as "estimated"). 
+
+Consider industry benchmarks for hospitality/hotels:
+- Facebook: average hotel engagement 1.5-4%, posts 8-15/month
+- Instagram: average hotel engagement 2-6%, posts 15-25/month
+- TikTok: average hotel engagement 4-12%, posts 10-20/month
+- YouTube: average hotel engagement 2-6%, posts 2-6/month
+- LinkedIn: average hotel engagement 1-3%, posts 4-8/month
+
+If a hotel has NO profile URL found and NO follower data, mark it as "inactive" status.
+If a hotel has a profile, rank it 1-${totalCompetitors} where 1 is best. Base rank on known followers relative to typical competitors in this market.
+
+Return ONLY valid JSON (no markdown) in this exact structure:
+{
+  "platforms": [
+    {
+      "platform": "facebook",
+      "followers": <number>,
+      "posts_per_month": <number>,
+      "engagement_rate": <number like 2.4>,
+      "last_post_days_ago": <number 1-60>,
+      "content_types": ["photos", "events"],
+      "competitor_avg_followers": <number>,
+      "competitor_avg_posts": <number>,
+      "competitor_avg_engagement": <number>,
+      "rank": <1 to ${totalCompetitors}>,
+      "status": "leading|competitive|behind|inactive",
+      "recommendation": "<specific actionable recommendation for this hotel on this platform, 1-2 sentences>"
+    }
+  ]
+}`;
 
   try {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'google/gemini-3-flash-preview',
         messages: [
-          {
-            role: 'system',
-            content: `Extract the follower/subscriber count from the scraped ${platform} profile page content. Return ONLY a JSON: {"followers": <number or null>}. Return null if you cannot find it.`
-          },
-          {
-            role: 'user',
-            content: `Hotel: ${hotelName}\nPlatform: ${platform}\n\nScraped content:\n${snippet}`
-          }
+          { role: 'system', content: 'You are a hotel social media analyst. Return ONLY valid JSON, no markdown formatting, no code blocks.' },
+          { role: 'user', content: prompt }
         ],
+        temperature: 0.3,
       }),
     });
 
     if (!response.ok) {
-      await response.text();
-      return null;
+      const errText = await response.text();
+      console.error('Lovable AI error:', response.status, errText);
+      return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    const match = content.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      if (parsed.followers && typeof parsed.followers === 'number') {
-        console.log(`  AI extracted ${platform} followers: ${parsed.followers}`);
-        return parsed.followers;
-      }
+    const aiData = await response.json();
+    const content = aiData.choices?.[0]?.message?.content || '';
+    console.log('Lovable AI response length:', content.length);
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('No JSON found in AI response');
+      return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors);
     }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const aiPlatforms: any[] = parsed.platforms || [];
+
+    return allPlatforms.map((platformName) => {
+      const aiP = aiPlatforms.find((p: any) => p.platform === platformName);
+      const fd = followerData[platformName];
+
+      // Prefer real scraped follower count over AI estimate
+      const followers = (fd?.count != null) ? fd.count : (aiP?.followers ?? getEstimatedFollowers(platformName));
+      const dataSource: 'scraped' | 'searched' | 'estimated' = fd?.source ?? 'estimated';
+
+      const lastPostDaysAgo = aiP?.last_post_days_ago ?? 30;
+      const lastPostDate = new Date(Date.now() - lastPostDaysAgo * 24 * 60 * 60 * 1000).toISOString();
+
+      const status = (aiP?.status as SocialPlatformMetrics['status']) ?? 'behind';
+
+      return {
+        platform: platformName as SocialPlatformMetrics['platform'],
+        hotelMetrics: {
+          followers,
+          posts: aiP?.posts_per_month ?? 8,
+          engagement: aiP?.engagement_rate ?? 2.0,
+          lastPostDate,
+          contentTypes: aiP?.content_types ?? getContentTypes(platformName),
+        },
+        competitorAverage: {
+          followers: aiP?.competitor_avg_followers ?? Math.round(followers * 1.2),
+          posts: aiP?.competitor_avg_posts ?? 10,
+          engagement: aiP?.competitor_avg_engagement ?? 2.5,
+        },
+        rank: aiP?.rank ?? totalCompetitors,
+        totalCompetitors,
+        status,
+        recommendation: aiP?.recommendation ?? getDefaultRecommendation(platformName, status),
+        dataSource,
+      } as SocialPlatformMetrics;
+    });
+
   } catch (e) {
-    console.error(`AI extraction failed for ${platform}:`, e);
+    console.error('AI synthesis failed:', e);
+    return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors);
   }
-  return null;
+}
+
+function buildFallbackMetrics(
+  followerData: Record<string, { count: number | null; source: 'scraped' | 'searched' | 'estimated' }>,
+  profileUrls: Record<string, string>,
+  allPlatforms: string[],
+  totalCompetitors: number
+): SocialPlatformMetrics[] {
+  return allPlatforms.map((platform) => {
+    const fd = followerData[platform];
+    const followers = fd?.count ?? getEstimatedFollowers(platform);
+    const hasProfile = !!profileUrls[platform];
+    const status: SocialPlatformMetrics['status'] = (!hasProfile && !fd?.count) ? 'inactive' : 'behind';
+    return {
+      platform: platform as SocialPlatformMetrics['platform'],
+      hotelMetrics: {
+        followers,
+        posts: 8,
+        engagement: 2.0,
+        lastPostDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        contentTypes: getContentTypes(platform),
+      },
+      competitorAverage: {
+        followers: Math.round(followers * 1.2),
+        posts: 10,
+        engagement: 2.5,
+      },
+      rank: totalCompetitors,
+      totalCompetitors,
+      status,
+      recommendation: getDefaultRecommendation(platform, status),
+      dataSource: fd?.source ?? 'estimated',
+    } as SocialPlatformMetrics;
+  });
 }
 
 serve(async (req) => {
@@ -285,8 +396,13 @@ serve(async (req) => {
       throw new Error('FIRECRAWL_API_KEY is not configured');
     }
 
-    const totalCompetitors = (competitors?.length || 3) + 1;
-    const competitorNames = competitors?.slice(0, 5).map(c => c.name).join(', ') || 'local competitors';
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
+    }
+
+    const allPlatforms: Array<'facebook' | 'instagram' | 'tiktok' | 'youtube' | 'linkedin'> =
+      ['facebook', 'instagram', 'tiktok', 'youtube', 'linkedin'];
 
     // Step 1: Find social media profile URLs
     const profileUrls = await findSocialProfileUrls(
@@ -297,9 +413,6 @@ serve(async (req) => {
     );
 
     // Step 2: Scrape found profiles with Firecrawl (in parallel)
-    const allPlatforms: Array<'facebook' | 'instagram' | 'tiktok' | 'youtube' | 'linkedin'> = 
-      ['facebook', 'instagram', 'tiktok', 'youtube', 'linkedin'];
-
     const scrapeResults: Record<string, string | null> = {};
     const scrapePromises = allPlatforms
       .filter(p => profileUrls[p])
@@ -316,16 +429,9 @@ serve(async (req) => {
     for (const platform of allPlatforms) {
       const markdown = scrapeResults[platform];
       if (markdown) {
-        // Try regex extraction first
-        let count = extractFollowerCount(markdown, platform);
+        const count = extractFollowerCount(markdown, platform);
         if (count) {
           followerCounts[platform] = { count, source: 'scraped' };
-        } else {
-          // Fallback to AI extraction
-          count = await extractWithAI(markdown, platform, hotel.name, PERPLEXITY_API_KEY);
-          if (count) {
-            followerCounts[platform] = { count, source: 'scraped' };
-          }
         }
       }
     }
@@ -376,61 +482,23 @@ Use null if you genuinely cannot find the data. Do NOT make up numbers.`
               }
             }
           }
-        } else {
-          await searchResponse.text();
         }
       } catch (e) {
         console.error('Perplexity search fallback failed:', e);
       }
     }
 
-    // Step 5: Build final platform metrics
-    const platforms: SocialPlatformMetrics[] = allPlatforms.map((platform) => {
-      const followerData = followerCounts[platform];
-      const hasRealData = followerData && followerData.count !== null;
-      const followers = hasRealData ? followerData!.count! : getEstimatedFollowers(platform);
-      const dataSource = hasRealData ? followerData!.source : 'estimated' as const;
+    // Step 5: Use Lovable AI to synthesize complete, intelligent metrics for all platforms
+    console.log('Synthesizing social metrics with Lovable AI...');
+    const platforms = await synthesizeSocialMetricsWithAI(
+      hotel,
+      competitors,
+      followerCounts,
+      profileUrls,
+      LOVABLE_API_KEY
+    );
 
-      const engagement = getEstimatedEngagement(platform);
-      const posts = Math.round(Math.random() * 12 + 2);
-      const rank = Math.min(totalCompetitors, Math.floor(Math.random() * totalCompetitors) + 1);
-
-      let status: SocialPlatformMetrics['status'];
-      if (!profileUrls[platform] && !hasRealData) {
-        status = 'inactive';
-      } else if (rank <= 2) {
-        status = 'leading';
-      } else if (rank <= Math.ceil(totalCompetitors / 2)) {
-        status = 'competitive';
-      } else {
-        status = 'behind';
-      }
-
-      const competitorFollowers = Math.round(followers * (0.7 + Math.random() * 0.6));
-
-      return {
-        platform,
-        hotelMetrics: {
-          followers,
-          posts,
-          engagement,
-          lastPostDate: new Date(Date.now() - Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString(),
-          contentTypes: getContentTypes(platform),
-        },
-        competitorAverage: {
-          followers: competitorFollowers,
-          posts: Math.round(posts * (0.8 + Math.random() * 0.4)),
-          engagement: Number((engagement * (0.8 + Math.random() * 0.4)).toFixed(1)),
-        },
-        rank,
-        totalCompetitors,
-        status,
-        recommendation: getRecommendation(platform, status),
-        dataSource,
-      };
-    });
-
-    console.log('Social analysis complete:', platforms.map(p => `${p.platform}: ${p.hotelMetrics.followers} (${p.dataSource})`).join(', '));
+    console.log('Social analysis complete:', platforms.map(p => `${p.platform}: ${p.hotelMetrics.followers} followers, rank ${p.rank}/${p.totalCompetitors} (${p.status})`).join(' | '));
 
     return new Response(
       JSON.stringify({
@@ -461,19 +529,8 @@ function getEstimatedFollowers(platform: string): number {
     linkedin: [300, 3000],
   };
   const [min, max] = ranges[platform] || [500, 5000];
-  return Math.round(min + Math.random() * (max - min));
-}
-
-function getEstimatedEngagement(platform: string): number {
-  const ranges: Record<string, [number, number]> = {
-    facebook: [1.5, 4.5],
-    instagram: [2.5, 6.0],
-    tiktok: [4.0, 12.0],
-    youtube: [2.0, 6.0],
-    linkedin: [1.0, 3.5],
-  };
-  const [min, max] = ranges[platform] || [1.0, 5.0];
-  return Number((min + Math.random() * (max - min)).toFixed(1));
+  // Use a deterministic middle value instead of random
+  return Math.round((min + max) / 2);
 }
 
 function getContentTypes(platform: string): string[] {
@@ -487,39 +544,38 @@ function getContentTypes(platform: string): string[] {
   return types[platform] || ['photos', 'updates'];
 }
 
-function getRecommendation(platform: string, status: string): string {
+function getDefaultRecommendation(platform: string, status: string): string {
   const recommendations: Record<string, Record<string, string>> = {
     facebook: {
       leading: 'Maintain posting frequency and leverage Facebook Events for local promotions.',
       competitive: 'Increase posting to 3x per week and boost high-performing posts.',
       behind: 'Revamp content strategy with more video content and guest stories.',
-      inactive: 'Create a Facebook page and start with 2-3 posts per week.',
+      inactive: 'Create a Facebook page and start with 2-3 posts per week to establish a presence.',
     },
     instagram: {
-      leading: 'Continue creating engaging Reels and Stories to maintain momentum.',
+      leading: 'Continue creating engaging Reels and Stories to maintain top positioning.',
       competitive: 'Post daily Stories and increase Reels content for better reach.',
-      behind: 'Focus on high-quality visual content and use location tags strategically.',
-      inactive: 'Create an Instagram account and start with daily Stories showcasing the property.',
+      behind: 'Focus on high-quality visuals and collaborate with local travel influencers.',
+      inactive: 'Set up an Instagram Business account and post daily photos of amenities and local attractions.',
     },
     tiktok: {
-      leading: 'Keep creating trending content and collaborate with travel influencers.',
-      competitive: 'Post 3-5 times per week and engage with trending sounds.',
-      behind: 'Focus on behind-the-scenes content and local area highlights.',
-      inactive: 'Start a TikTok account with simple property tours and staff introductions.',
+      leading: 'Keep experimenting with trending sounds and challenges relevant to travel.',
+      competitive: 'Increase posting frequency to 5+ videos per week to grow faster.',
+      behind: 'Start with behind-the-scenes content and staff spotlights to humanize the brand.',
+      inactive: 'Create a TikTok account to reach younger travelers with short, engaging property videos.',
     },
     youtube: {
-      leading: 'Expand content to virtual tours and local destination guides.',
-      competitive: 'Create monthly room tours and local attraction videos.',
-      behind: 'Start with a professional property tour video as your foundation.',
-      inactive: 'Create a YouTube channel with a channel trailer and one comprehensive hotel tour.',
+      leading: 'Create longer-form content like full property tours and local area guides.',
+      competitive: 'Optimize video SEO with local keywords and create room tour playlists.',
+      behind: 'Start with a professional property tour video and local neighborhood guide.',
+      inactive: 'Launch a YouTube channel with a hotel tour video to support direct bookings.',
     },
     linkedin: {
-      leading: 'Share industry insights and company culture to attract talent.',
-      competitive: 'Post job openings and celebrate team achievements.',
-      behind: 'Complete company profile and share monthly updates.',
-      inactive: 'Set up a LinkedIn company page with all amenities and job listings.',
+      leading: 'Share industry thought leadership and highlight staff achievements.',
+      competitive: 'Post more company culture content and engage with local business community.',
+      behind: 'Focus on corporate travel audience with business amenities showcases.',
+      inactive: 'Create a LinkedIn company page to attract corporate travelers and B2B partnerships.',
     },
   };
-
-  return recommendations[platform]?.[status] || 'Optimize your presence on this platform.';
+  return recommendations[platform]?.[status] ?? 'Improve your social media presence on this platform.';
 }
