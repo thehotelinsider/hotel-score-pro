@@ -108,6 +108,24 @@ async function scrapeTripAdvisorPage(url: string, firecrawlKey: string): Promise
   }
 }
 
+// Known cities/areas within ~100 miles of Knoxville, TN
+const KNOXVILLE_AREA_CITIES = new Set([
+  'knoxville', 'gatlinburg', 'pigeon forge', 'sevierville', 'oak ridge',
+  'maryville', 'morristown', 'alcoa', 'lenoir city', 'farragut', 'powell',
+  'clinton', 'newport', 'greeneville', 'jefferson city', 'harriman',
+  'kingston', 'rockwood', 'crossville', 'lafollette', 'jellico',
+  'johnson city', 'kingsport', 'bristol', 'elizabethton', 'erwin',
+  'asheville', 'waynesville', 'sylva', // nearby NC cities
+]);
+
+function isInKnoxvilleArea(city: string, state: string): boolean {
+  const cityLower = (city || '').toLowerCase().trim();
+  const stateUpper = (state || '').toUpperCase().trim();
+  // Must be in TN or the NC border area
+  if (stateUpper !== 'TN' && stateUpper !== 'NC') return false;
+  return KNOXVILLE_AREA_CITIES.has(cityLower);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -123,7 +141,16 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Finding competitors with TripAdvisor Travelers' Choice rankings for: ${hotel.name} in ${hotel.city}, ${hotel.state}`);
+    // Guard: subject hotel must be within the Knoxville, TN service area
+    if (!isInKnoxvilleArea(hotel.city, hotel.state)) {
+      console.warn(`Subject hotel "${hotel.name}" in ${hotel.city}, ${hotel.state} is outside the Knoxville, TN service area — aborting competitor search.`);
+      return new Response(
+        JSON.stringify({ competitors: [], error: 'Hotel is outside the supported geographic area (Knoxville, TN and surroundings).' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Finding competitors for: ${hotel.name} in ${hotel.city}, ${hotel.state}`);
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
@@ -155,11 +182,13 @@ ABSOLUTELY CRITICAL: Every hotel you return MUST be a REAL, currently operationa
 - If you are not 100% certain a hotel exists and is currently open for business, DO NOT include it.
 - Use only hotels you can verify from real TripAdvisor listings, Google Maps, or OTA search results.
 
-LOCATION RULE - THIS IS THE MOST IMPORTANT RULE:
+LOCATION RULE — THIS IS THE MOST IMPORTANT RULE:
+- This application ONLY operates within Knoxville, TN and its surrounding areas (within ~100 miles).
 - ALL competitors MUST be in the EXACT SAME CITY as the subject hotel.
 - If the subject hotel is in "${hotel.city}, ${hotel.state}", every competitor MUST also be in "${hotel.city}, ${hotel.state}".
 - Do NOT include hotels from neighboring cities, suburbs, or different municipalities.
 - Do NOT include hotels from a different sub-market (e.g., if subject is downtown, competitors must also be downtown).
+- Do NOT include hotels from outside the Knoxville, TN area regardless of similarity.
 
 Return ONLY valid JSON with this structure:
 {
@@ -307,11 +336,20 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
       await Promise.all(scrapePromises);
     }
 
-    // Filter out competitors not in the same city (post-processing safety check)
+    // Post-processing safety check: same city AND same state AND within Knoxville service area
     const hotelCityLower = hotel.city.toLowerCase().trim();
+    const hotelStateUpper = (hotel.state || '').toUpperCase().trim();
     competitors = competitors.filter((c: any) => {
       const compCity = (c.city || '').toLowerCase().trim();
-      return compCity === hotelCityLower;
+      const compState = (c.state || '').toUpperCase().trim();
+      const sameCity = compCity === hotelCityLower;
+      const sameState = compState === hotelStateUpper;
+      const inServiceArea = isInKnoxvilleArea(c.city, c.state);
+      if (!sameCity || !sameState || !inServiceArea) {
+        console.log(`Filtered competitor out of area: ${c.name} in ${c.city}, ${c.state}`);
+        return false;
+      }
+      return true;
     });
 
     // If no star level from Perplexity, infer from classification
