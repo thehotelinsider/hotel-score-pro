@@ -29,6 +29,53 @@ interface Competitor {
   locationType?: string;
 }
 
+/**
+ * Structure-aware JSON sanitizer.
+ * Iterates character-by-character, tracking whether we're inside a JSON string.
+ * Only escapes raw control characters (tab, newline, carriage return, etc.) when
+ * they appear INSIDE a string — leaving structural whitespace between JSON tokens intact.
+ */
+function sanitizeJsonControlChars(raw: string): string {
+  let inString = false;
+  let escaped = false;
+  let result = '';
+
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i];
+    const code = raw.charCodeAt(i);
+
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\' && inString) {
+      escaped = true;
+      result += char;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString) {
+      // Inside a JSON string: raw control characters are illegal — escape them
+      if (code === 0x0A) { result += '\\n'; continue; }  // newline
+      if (code === 0x0D) { result += '\\r'; continue; }  // carriage return
+      if (code === 0x09) { result += '\\t'; continue; }  // tab
+      if (code < 0x20 || code === 0x7F) { continue; }    // drop other control chars
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
 function classifyHotel(hotel: Hotel) {
   const nameLower = hotel.name.toLowerCase();
   const addressLower = hotel.address.toLowerCase();
@@ -263,17 +310,14 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        // Strip control characters (0x00-0x1F except tab, newline, carriage return)
-        // that Perplexity sometimes embeds inside string values, causing JSON.parse to crash
-        const sanitized = jsonMatch[0]
-          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')  // strip bad control chars
-          .replace(/\r\n/g, '\\n')                              // normalise line endings inside strings
-          .replace(/\n/g, '\\n')
-          .replace(/\r/g, '\\n');
+        // Structure-aware sanitizer: only escape control characters that appear
+        // INSIDE JSON string values. Replacing them globally breaks structural
+        // newlines between JSON tokens, which causes JSON.parse to fail.
+        const sanitized = sanitizeJsonControlChars(jsonMatch[0]);
         parsedData = JSON.parse(sanitized);
         console.log(`Parsed ${parsedData?.competitors?.length ?? 0} raw competitors from Perplexity`);
       } else {
-        console.warn('No JSON object found in Perplexity response. Raw content snippet:', content.slice(0, 300));
+        console.warn('No JSON object found in Perplexity response. Snippet:', content.slice(0, 300));
       }
     } catch (parseError) {
       console.error('Failed to parse Perplexity response:', parseError);
