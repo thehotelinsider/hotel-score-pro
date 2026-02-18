@@ -376,14 +376,14 @@ serve(async (req) => {
             content: `You are a hotel market analyst. Your ONLY job is to identify REAL, currently-operating competitor hotels near a subject hotel.
 
 CRITICAL — EXISTENCE RULE:
-- Every hotel name you return will be verified against Google Maps. If it does not exist on Google Maps within 5 miles of the subject hotel, it will be REJECTED.
+- Every hotel name you return will be verified against Google Maps. If it does not exist on Google Maps within 2 miles of the subject hotel, it will be REJECTED.
 - Do NOT invent or guess hotel names. Only return hotels you have seen on Google Maps, TripAdvisor, Booking.com, or Expedia.
 - Do NOT combine brand names with locations to create hotels that might not exist (e.g., "TownePlace Suites Knoxville Downtown" — if you have not seen it listed, do not include it).
 - Only include hotels you are highly confident exist and are currently open for business.
 
 LOCATION RULE:
 - ALL competitors must be in ${hotel.city}, ${hotel.state} — the exact same city.
-- All competitors must be within 5 miles of "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}.
+- All competitors must be within 2 miles of "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}.
 - Same sub-market required: if the subject is downtown, competitors must also be downtown.
 
 BRAND RULE:
@@ -415,7 +415,7 @@ Requirements:
 - Same city: ${hotel.city}, ${hotel.state}
 - Same sub-market: ${locationType}
 - Similar tier: ${starLevel} (${hotelType})
-- Within 5 miles
+- Within 2 miles
 - Must be real hotels currently operating and listed on Google Maps
 
 Only return hotels you are certain exist. These will be validated against Google Maps — fabricated names will be discarded.`
@@ -455,7 +455,7 @@ Only return hotels you are certain exist. These will be validated against Google
     }
 
     // Step 3: Validate EVERY candidate against Google Places API
-    // Only hotels that Google can confirm exist within 5 miles are accepted
+    // Only hotels that Google can confirm exist within 2 miles are accepted
     console.log(`Verifying ${candidates.length} candidates against Google Places API...`);
 
     const verifiedCompetitors: Competitor[] = [];
@@ -492,7 +492,7 @@ Only return hotels you are certain exist. These will be validated against Google
         GOOGLE_PLACES_API_KEY,
         subjectCoords.lat,
         subjectCoords.lng,
-        5 // max 5 miles from subject hotel
+        2 // max 2 miles from subject hotel
       );
 
       if (!verified) {
@@ -532,7 +532,7 @@ Only return hotels you are certain exist. These will be validated against Google
     let finalCompetitors = sortedCompetitors;
     if (finalCompetitors.length < 4) {
       console.log(`Only ${finalCompetitors.length} verified. Attempting Google Places nearby search fallback...`);
-      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${subjectCoords.lat},${subjectCoords.lng}&radius=8047&type=lodging&key=${GOOGLE_PLACES_API_KEY}`;
+      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${subjectCoords.lat},${subjectCoords.lng}&radius=3219&type=lodging&key=${GOOGLE_PLACES_API_KEY}`;
 
       try {
         const nearbyResponse = await fetch(nearbyUrl);
@@ -562,7 +562,7 @@ Only return hotels you are certain exist. These will be validated against Google
               !placeAddress.toUpperCase().includes(hotel.state.toUpperCase())) continue;
 
           const distanceMiles = haversineDistance(subjectCoords.lat, subjectCoords.lng, placeLat, placeLng);
-          if (distanceMiles > 5) continue;
+          if (distanceMiles > 2) continue;
 
           console.log(`Fallback ACCEPTED from nearby search: "${placeName}" (${distanceMiles.toFixed(1)} mi)`);
 
