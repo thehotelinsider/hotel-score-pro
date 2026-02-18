@@ -576,7 +576,15 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
         <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border animate-fade-in" style={{ animationDelay: '150ms' }}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 className="text-base sm:text-lg font-semibold text-foreground">
-              You're ranking below {subjectHotelTARank ? competitors.filter(c => c.rank < subjectHotelTARank).length : competitors.length} competitors
+              {(() => {
+                const allEntries = [
+                  ...competitors.map(c => ({ ...c, isCurrent: false })),
+                  { id: 'current', name: result.hotel.name, rating: result.hotel.rating, isCurrent: true },
+                ].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+                const subjectRank = allEntries.findIndex(e => e.isCurrent) + 1;
+                const rankBelow = Math.max(0, subjectRank - 1);
+                return `You're ranking below ${rankBelow} competitor${rankBelow !== 1 ? 's' : ''}`;
+              })()}
             </h2>
             <Button
               variant="outline"
