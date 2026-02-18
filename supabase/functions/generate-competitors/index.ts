@@ -170,7 +170,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'sonar-pro',
         messages: [
           {
             role: 'system',
@@ -263,10 +263,21 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedData = JSON.parse(jsonMatch[0]);
+        // Strip control characters (0x00-0x1F except tab, newline, carriage return)
+        // that Perplexity sometimes embeds inside string values, causing JSON.parse to crash
+        const sanitized = jsonMatch[0]
+          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')  // strip bad control chars
+          .replace(/\r\n/g, '\\n')                              // normalise line endings inside strings
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\n');
+        parsedData = JSON.parse(sanitized);
+        console.log(`Parsed ${parsedData?.competitors?.length ?? 0} raw competitors from Perplexity`);
+      } else {
+        console.warn('No JSON object found in Perplexity response. Raw content snippet:', content.slice(0, 300));
       }
     } catch (parseError) {
       console.error('Failed to parse Perplexity response:', parseError);
+      console.error('Raw content snippet:', content.slice(0, 500));
     }
 
     let competitors: Competitor[] = [];
@@ -335,6 +346,9 @@ IMPORTANT: Do NOT fabricate hotel names. Every competitor must be a real, operat
 
       await Promise.all(scrapePromises);
     }
+
+    // Log what Perplexity returned before filtering so we can see any wrong-city data
+    console.log(`Pre-filter competitors (${competitors.length}):`, competitors.map((c: any) => `${c.name} — ${c.city}, ${c.state}`).join(' | '));
 
     // Post-processing safety check: same city AND same state AND within Knoxville service area
     const hotelCityLower = hotel.city.toLowerCase().trim();
