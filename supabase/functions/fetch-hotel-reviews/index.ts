@@ -53,11 +53,11 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a hotel review research assistant. Find and extract real guest reviews for hotels. Return ONLY valid JSON, no markdown or explanation.`
+            content: `You are a hotel review research assistant. Find and extract real guest reviews for hotels. IMPORTANT: Only include reviews from the last 12 months (after February 2025). Do NOT include any reviews older than one year. Return ONLY valid JSON, no markdown or explanation.`
           },
           {
             role: 'user',
-            content: `Find the TripAdvisor listing URL for "${hotelName}" located in ${location}. Also provide 5-8 recent real guest reviews with their ratings. 
+            content: `Find the TripAdvisor listing URL for "${hotelName}" located in ${location}. Also provide 5-8 recent real guest reviews WITH DATES from the last 12 months only (after February 2025). Do not include any reviews older than one year.
 
 Return JSON in this exact format:
 {
@@ -160,11 +160,11 @@ Return JSON in this exact format:
           messages: [
             {
               role: 'system',
-              content: 'You find and summarize real hotel guest reviews. Return ONLY valid JSON array.'
+              content: 'You find and summarize real hotel guest reviews. IMPORTANT: Only include reviews from the last 12 months (after February 2025). Return ONLY valid JSON array.'
             },
             {
               role: 'user',
-              content: `Find 8 real recent guest reviews for "${hotelName}" in ${location} from Google Reviews, TripAdvisor, or Booking.com. Include variety of ratings (some 5-star, some 4-star, some 3-star).
+              content: `Find 8 real recent guest reviews for "${hotelName}" in ${location} from Google Reviews, TripAdvisor, or Booking.com. ONLY include reviews from the last 12 months (after February 2025). Include variety of ratings (some 5-star, some 4-star, some 3-star).
 
 Return JSON array:
 [
@@ -212,6 +212,23 @@ Return JSON array:
 
     // Filter out any reviews with empty text
     reviews = reviews.filter(r => r.text && r.text.length > 10);
+
+    // Filter out reviews older than 1 year based on parsed date
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    
+    reviews = reviews.filter(r => {
+      if (!r.date || r.date === 'Recent') return true; // keep undated reviews
+      try {
+        const parsed = new Date(r.date);
+        if (isNaN(parsed.getTime())) return true; // keep if unparseable
+        return parsed >= oneYearAgo;
+      } catch {
+        return true;
+      }
+    });
+
+    console.log(`Returning ${reviews.length} reviews (within last year) for ${hotelName}`);
 
     console.log(`Returning ${reviews.length} reviews for ${hotelName}`);
 
