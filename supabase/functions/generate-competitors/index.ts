@@ -501,11 +501,17 @@ Only return hotels you are certain exist. These will be validated against Google
         continue;
       }
 
+      // Skip if we already have a competitor with the same Google Place ID (prevents duplicates)
+      if (verifiedCompetitors.some(c => c.googlePlaceId === verified.placeId)) {
+        console.log(`SKIPPED (duplicate placeId ${verified.placeId}): "${verified.name}"`);
+        continue;
+      }
+
       console.log(`ACCEPTED: "${verified.name}" at "${verified.address}" — ${verified.distance} mi away`);
 
       verifiedCompetitors.push({
         id: crypto.randomUUID(),
-        name: verified.name, // Use the name as Google knows it (corrected spelling, etc.)
+        name: verified.name,
         rating: verified.rating || (typeof candidate.rating === 'number' ? candidate.rating : 4.0),
         tripadvisorRank: typeof candidate.tripadvisorRank === 'number' ? candidate.tripadvisorRank : undefined,
         starLevel: typeof candidate.starLevel === 'number' ? candidate.starLevel : 3,
@@ -554,8 +560,8 @@ Only return hotels you are certain exist. These will be validated against Google
           // Skip subject hotel
           if (placeName.toLowerCase().trim() === hotel.name.toLowerCase().trim()) continue;
 
-          // Skip already accepted
-          if (finalCompetitors.some(c => c.name.toLowerCase() === placeName.toLowerCase())) continue;
+          // Skip already accepted (by name or placeId)
+          if (finalCompetitors.some(c => c.name.toLowerCase() === placeName.toLowerCase() || c.googlePlaceId === place.place_id)) continue;
 
           // Must contain the city name in address
           if (!placeAddress.toUpperCase().includes(hotel.city.toUpperCase()) &&
