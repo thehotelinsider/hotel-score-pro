@@ -726,17 +726,6 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
                 issues={websiteScanData.issues}
                 scannedCategories={websiteScanData.scannedCategories}
               />
-              <div className="mt-4 pt-4 border-t border-border flex justify-center">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={scanWebsite}
-                  disabled={isScanning}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isScanning ? 'animate-spin' : ''}`} />
-                  Scan Again
-                </Button>
-              </div>
             </div>
           )}
         </div>
