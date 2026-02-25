@@ -243,7 +243,7 @@ Return ONLY valid JSON array. For each real hotel found, provide:
 - priceLevel: "$", "$$", "$$$", or "$$$$"
 - description: brief description
 - coordinates: { lat: number, lng: number } — actual GPS coordinates
-- photos: array of 4-6 realistic hotel image URLs from Unsplash
+- photos: empty array [] (real photos will be fetched separately)
 - outsideArea: false
 
 Return 3-5 REAL hotels that actually exist and are currently operating.`,
@@ -293,15 +293,13 @@ Return 3-5 REAL hotels that actually exist and are currently operating.`,
 
   // Post-process: hard-filter anything outside the 100-mile radius using coordinates
   hotels = hotels
-    .map((hotel: any, index: number) => ({
+    .map((hotel: any) => ({
       ...hotel,
       id: hotel.id || crypto.randomUUID(),
-      photos: hotel.photos?.length > 0 ? hotel.photos : generateHotelPhotos(index),
-      imageUrl: hotel.imageUrl || hotel.photos?.[0] || generateHotelPhotos(index)[0],
       outsideArea: false,
     }))
     .filter((hotel: any) => {
-      if (!hotel.coordinates?.lat || !hotel.coordinates?.lng) return true; // keep if no coords
+      if (!hotel.coordinates?.lat || !hotel.coordinates?.lng) return true;
       const dist = calculateDistance(
         KNOXVILLE_CENTER.lat,
         KNOXVILLE_CENTER.lng,
@@ -314,6 +312,61 @@ Return 3-5 REAL hotels that actually exist and are currently operating.`,
       }
       return true;
     });
+
+  // Fetch real photos from Google Places for each hotel
+  const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
+  if (GOOGLE_PLACES_API_KEY && hotels.length > 0) {
+    console.log('Fetching real Google Places photos for Perplexity results...');
+    await Promise.all(
+      hotels.map(async (hotel: any) => {
+        try {
+          const searchBody = {
+            textQuery: `${hotel.name} ${hotel.city || ''} ${hotel.state || ''}`,
+            includedType: 'lodging',
+            maxResultCount: 1,
+            languageCode: 'en',
+          };
+          const resp = await fetch('https://places.googleapis.com/v1/places:searchText', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+              'X-Goog-FieldMask': 'places.photos',
+            },
+            body: JSON.stringify(searchBody),
+          });
+          if (!resp.ok) return;
+          const placeData = await resp.json();
+          const place = placeData.places?.[0];
+          if (place?.photos?.length > 0) {
+            const realPhotos: string[] = [];
+            for (const photo of place.photos.slice(0, 6)) {
+              const photoUrl = `https://places.googleapis.com/v1/${photo.name}/media?maxHeightPx=800&maxWidthPx=1200&key=${GOOGLE_PLACES_API_KEY}`;
+              try {
+                const photoResp = await fetch(photoUrl, { method: 'GET', redirect: 'follow' });
+                if (photoResp.ok) realPhotos.push(photoResp.url);
+              } catch {}
+            }
+            if (realPhotos.length > 0) {
+              hotel.photos = realPhotos;
+              hotel.imageUrl = realPhotos[0];
+              console.log(`Fetched ${realPhotos.length} real photos for ${hotel.name}`);
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to fetch photos for ${hotel.name}:`, e);
+        }
+      })
+    );
+  }
+
+  // Fill any remaining hotels without real photos with fallback
+  hotels.forEach((hotel: any, index: number) => {
+    if (!hotel.photos?.length || hotel.photos[0]?.includes('unsplash.com')) {
+      hotel.photos = generateHotelPhotos(index);
+      hotel.imageUrl = hotel.photos[0];
+    }
+  });
 
   console.log(`Returning ${hotels.length} in-area hotels via Perplexity`);
 
