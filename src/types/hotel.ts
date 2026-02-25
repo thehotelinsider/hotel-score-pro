@@ -92,6 +92,7 @@ export interface SocialPlatformMetrics {
   status: 'leading' | 'competitive' | 'behind' | 'inactive';
   recommendation: string;
   dataSource?: 'scraped' | 'searched' | 'estimated';
+  noDedicatedAccount?: boolean;
 }
 
 export interface OTAReviewPlatformMetrics {
