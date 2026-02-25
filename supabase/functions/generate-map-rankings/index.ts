@@ -169,21 +169,39 @@ Use REAL data from Google Maps. Include actual ratings and review counts.`
     const hotelNameLower = hotel.name.toLowerCase().trim();
 
     if (perplexityHotels.length > 0) {
-      rankings = perplexityHotels.map((h, index) => {
+      // First pass: score each hotel's name similarity to the subject hotel
+      const scored = perplexityHotels.map((h, index) => {
         const nameMatch = h.name.toLowerCase().trim();
-        const isSubject = nameMatch === hotelNameLower ||
-          nameMatch.includes(hotelNameLower) ||
-          hotelNameLower.includes(nameMatch);
-
-        return {
-          hotelName: h.name,
-          rank: index + 1,
-          rating: h.googleRating || 4.0,
-          reviewCount: h.googleReviewCount || 0,
-          distance: h.distance || 'N/A',
-          isSubjectHotel: isSubject,
-        };
+        let similarity = 0;
+        if (nameMatch === hotelNameLower) {
+          similarity = 100; // Exact match
+        } else {
+          // Count shared words
+          const subjectWords = hotelNameLower.split(/\s+/);
+          const candidateWords = nameMatch.split(/\s+/);
+          const shared = subjectWords.filter(w => candidateWords.includes(w)).length;
+          // Similarity = shared words / max words, penalize length difference
+          const maxWords = Math.max(subjectWords.length, candidateWords.length);
+          similarity = (shared / maxWords) * 100;
+          // Bonus if lengths are similar (avoids partial brand name matches)
+          const lenRatio = Math.min(nameMatch.length, hotelNameLower.length) / Math.max(nameMatch.length, hotelNameLower.length);
+          similarity *= lenRatio;
+        }
+        return { hotel: h, index, similarity };
       });
+
+      // Find best match (must exceed threshold of 60%)
+      const bestMatch = scored.reduce((best, cur) => cur.similarity > best.similarity ? cur : best, scored[0]);
+      const bestMatchIndex = bestMatch.similarity >= 60 ? bestMatch.index : -1;
+
+      rankings = perplexityHotels.map((h, index) => ({
+        hotelName: h.name,
+        rank: index + 1,
+        rating: h.googleRating || 4.0,
+        reviewCount: h.googleReviewCount || 0,
+        distance: h.distance || 'N/A',
+        isSubjectHotel: index === bestMatchIndex,
+      }));
     }
 
     // Fallback if Perplexity didn't return enough data
