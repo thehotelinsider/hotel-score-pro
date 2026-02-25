@@ -210,28 +210,6 @@ export const GoogleBusinessProfile = ({
           ))}
         </div>
       </div>
-
-      {/* Actions */}
-      <div className="pt-2 flex flex-col sm:flex-row gap-2">
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={fetchGoogleBusinessData}
-          disabled={isLoading}
-          className="w-full sm:w-auto"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-        <Button 
-          variant="outline" 
-          className="flex-1"
-          onClick={() => window.open('https://business.google.com', '_blank')}
-        >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          <span className="text-xs sm:text-sm">Manage Google Business</span>
-        </Button>
-      </div>
     </div>
   );
 };
