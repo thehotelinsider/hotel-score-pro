@@ -28,14 +28,112 @@ serve(async (req) => {
   try {
     const { hotelName, hotelCity, hotelState, hotelCountry, hotelRating, hotelReviewCount } = await req.json();
     
-    console.log('Analyzing Google Business Profile via Perplexity for:', hotelName);
+    console.log('Analyzing Google Business Profile for:', hotelName);
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+
     if (!PERPLEXITY_API_KEY) {
       throw new Error('PERPLEXITY_API_KEY is not configured');
     }
 
-    // Use Perplexity to search for real Google Business Profile data
+    // Step 1: Get accurate rating & review count from Google Places API
+    let googleRating: number | null = null;
+    let googleReviewCount: number | null = null;
+
+    if (GOOGLE_PLACES_API_KEY) {
+      console.log('Fetching accurate review count from Google Places API...');
+      try {
+        const searchQuery = [hotelName, hotelCity, hotelState, hotelCountry].filter(Boolean).join(', ');
+        const textSearchResponse = await fetch('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+            'X-Goog-FieldMask': 'places.rating,places.userRatingCount,places.displayName',
+          },
+          body: JSON.stringify({
+            textQuery: searchQuery,
+            includedType: 'lodging',
+            maxResultCount: 1,
+            languageCode: 'en',
+          }),
+        });
+
+        if (textSearchResponse.ok) {
+          const placeData = await textSearchResponse.json();
+          const place = placeData.places?.[0];
+          if (place) {
+            googleRating = place.rating || null;
+            googleReviewCount = place.userRatingCount || null;
+            console.log(`Google Places: rating=${googleRating}, reviewCount=${googleReviewCount} for "${place.displayName?.text}"`);
+          }
+        } else {
+          console.error('Google Places API error:', textSearchResponse.status);
+        }
+      } catch (e) {
+        console.error('Google Places lookup failed:', e);
+      }
+    }
+
+    // Step 2: Verify with Firecrawl by scraping the Google Maps page
+    if (FIRECRAWL_API_KEY && (!googleReviewCount || !googleRating)) {
+      console.log('Verifying review count via Firecrawl scrape...');
+      try {
+        const searchQuery = encodeURIComponent(`${hotelName} ${hotelCity || ''} ${hotelState || ''}`);
+        const googleMapsUrl = `https://www.google.com/maps/search/${searchQuery}`;
+
+        const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: googleMapsUrl,
+            formats: ['markdown'],
+            onlyMainContent: true,
+            waitFor: 3000,
+          }),
+        });
+
+        if (firecrawlResponse.ok) {
+          const firecrawlData = await firecrawlResponse.json();
+          const markdown = firecrawlData.data?.markdown || firecrawlData.markdown || '';
+
+          // Extract review count patterns like "1,234 reviews" or "(1,234)"
+          const reviewCountMatch = markdown.match(/(\d[\d,]+)\s*(?:reviews?|Google reviews?)/i) 
+            || markdown.match(/\((\d[\d,]+)\)/);
+          if (reviewCountMatch) {
+            const scraped = parseInt(reviewCountMatch[1].replace(/,/g, ''));
+            if (!isNaN(scraped) && scraped > 0) {
+              console.log(`Firecrawl scraped review count: ${scraped}`);
+              if (!googleReviewCount) googleReviewCount = scraped;
+            }
+          }
+
+          // Extract rating like "4.5 stars" or "4.5/5"
+          const ratingMatch = markdown.match(/(\d\.\d)\s*(?:stars?|\/5|out of 5)/i);
+          if (ratingMatch) {
+            const scraped = parseFloat(ratingMatch[1]);
+            if (!isNaN(scraped) && scraped > 0 && scraped <= 5) {
+              console.log(`Firecrawl scraped rating: ${scraped}`);
+              if (!googleRating) googleRating = scraped;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Firecrawl scrape failed:', e);
+      }
+    }
+
+    // Use the most accurate data: Google Places > Firecrawl > passed-in values
+    const finalRating = googleRating || hotelRating || 4.2;
+    const finalReviewCount = googleReviewCount || hotelReviewCount || 0;
+    console.log(`Final GBP data: rating=${finalRating}, reviewCount=${finalReviewCount}`);
+
+    // Step 3: Use Perplexity for profile completeness analysis
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -51,8 +149,6 @@ serve(async (req) => {
 
 Return ONLY valid JSON with this structure:
 {
-  "rating": <actual Google rating>,
-  "reviewCount": <actual number of Google reviews>,
   "score": <profile completeness score 0-20>,
   "profileItems": [
     {
@@ -85,7 +181,7 @@ Profile items to check:
 Hotel: ${hotelName}
 Location: ${hotelCity || 'Unknown'}, ${hotelState || ''} ${hotelCountry || 'USA'}
 
-Find their actual Google rating, review count, and analyze their profile completeness. Look for their real business information, photos, reviews, and whether they actively manage their profile.`
+Analyze their profile completeness. Look for their real business information, photos, reviews, and whether they actively manage their profile. Do NOT include rating or reviewCount - those are already known.`
           }
         ],
       }),
@@ -110,33 +206,34 @@ Find their actual Google rating, review count, and analyze their profile complet
     
     console.log('Perplexity GBP response, citations:', citations.length);
 
-    // Parse the response
+    // Parse the profile analysis response
     let googleBusinessData: GoogleBusinessData;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        googleBusinessData = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        googleBusinessData = {
+          rating: finalRating,
+          reviewCount: finalReviewCount,
+          score: parsed.score || 14,
+          profileItems: parsed.profileItems || [],
+        };
       } else {
         throw new Error('No JSON found in response');
       }
     } catch (parseError) {
       console.error('Failed to parse Perplexity GBP response:', parseError);
-      // Generate fallback data using provided hotel info
-      googleBusinessData = generateFallbackData(hotelName, hotelRating, hotelReviewCount);
+      googleBusinessData = generateFallbackData(hotelName, finalRating, finalReviewCount);
     }
 
     // Ensure we have valid data
-    if (!googleBusinessData.profileItems || googleBusinessData.profileItems.length === 0 || googleBusinessData.score === 0) {
-      googleBusinessData = generateFallbackData(hotelName, hotelRating, hotelReviewCount);
+    if (!googleBusinessData.profileItems || googleBusinessData.profileItems.length === 0) {
+      googleBusinessData = generateFallbackData(hotelName, finalRating, finalReviewCount);
     }
 
-    // Use existing hotel data if available
-    if (hotelRating && !isNaN(hotelRating)) {
-      googleBusinessData.rating = hotelRating;
-    }
-    if (hotelReviewCount && !isNaN(hotelReviewCount)) {
-      googleBusinessData.reviewCount = hotelReviewCount;
-    }
+    // Always use the verified rating/reviewCount
+    googleBusinessData.rating = finalRating;
+    googleBusinessData.reviewCount = finalReviewCount;
 
     console.log('GBP analysis complete:', googleBusinessData.profileItems?.length, 'items analyzed');
 
