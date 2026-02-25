@@ -87,6 +87,34 @@ const SocialPlatformItem = ({ platform }: { platform: SocialPlatformMetrics }) =
   const config = platformConfig[platform.platform];
   const Icon = config.icon;
 
+  // If no dedicated account, show simplified view
+  if (platform.noDedicatedAccount) {
+    return (
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${config.bgColor} ${config.borderColor}`}>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-background">
+            <Icon className={`w-5 h-5 ${config.color}`} />
+          </div>
+          <div className="text-left">
+            <p className="font-medium text-foreground">{config.label}</p>
+            <p className="text-xs text-muted-foreground italic">No dedicated account was found</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">
+              #{platform.rank} of {platform.totalCompetitors}
+            </span>
+          </div>
+          <span className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor('inactive')}`}>
+            Inactive
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const followerDiff = platform.hotelMetrics.followers - platform.competitorAverage.followers;
   const engagementDiff = platform.hotelMetrics.engagement - platform.competitorAverage.engagement;
 

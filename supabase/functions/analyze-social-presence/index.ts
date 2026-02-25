@@ -35,6 +35,7 @@ interface SocialPlatformMetrics {
   status: 'leading' | 'competitive' | 'behind' | 'inactive';
   recommendation: string;
   dataSource: 'scraped' | 'searched' | 'estimated';
+  noDedicatedAccount?: boolean;
 }
 
 // Step 1: Use Perplexity to find social media profile URLs
@@ -43,7 +44,7 @@ async function findSocialProfileUrls(
   city: string,
   state: string,
   apiKey: string
-): Promise<Record<string, string>> {
+): Promise<{ urls: Record<string, string>; noDedicatedAccounts: string[] }> {
   console.log('Finding social media profile URLs via Perplexity for:', hotelName);
 
   const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -57,16 +58,17 @@ async function findSocialProfileUrls(
       messages: [
         {
           role: 'system',
-          content: `You find official social media profile URLs for hotels. Return ONLY valid JSON with this structure:
+          content: `You find official social media profile URLs for specific hotel locations (NOT corporate/brand pages). Return ONLY valid JSON with this structure:
 {
   "facebook": "<full facebook URL or null>",
   "instagram": "<full instagram URL or null>",
   "tiktok": "<full tiktok URL or null>",
   "youtube": "<full youtube URL or null>",
-  "linkedin": "<full linkedin URL or null>"
+  "linkedin": "<full linkedin URL or null>",
+  "no_dedicated_accounts": ["<platform names where you confirmed this specific hotel location does NOT have its own dedicated account, only corporate/brand pages exist>"]
 }
 
-Only include URLs you are confident are the official hotel accounts. Use null if unsure or not found.`
+IMPORTANT: Only include URLs for accounts that belong to this SPECIFIC hotel location. Do NOT include corporate brand pages (e.g. the main Marriott or Hilton page). Use null if unsure or not found. List platforms in "no_dedicated_accounts" where you can confirm the hotel has no location-specific social media presence.`
         },
         {
           role: 'user',
@@ -90,18 +92,21 @@ Only include URLs you are confident are the official hotel accounts. Use null if
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       const urls: Record<string, string> = {};
+      const noDedicatedAccounts: string[] = parsed.no_dedicated_accounts || [];
       for (const [platform, url] of Object.entries(parsed)) {
+        if (platform === 'no_dedicated_accounts') continue;
         if (url && typeof url === 'string' && url.startsWith('http')) {
           urls[platform] = url;
         }
       }
       console.log('Found profile URLs:', Object.keys(urls).join(', '));
-      return urls;
+      console.log('No dedicated accounts confirmed for:', noDedicatedAccounts.join(', ') || 'none');
+      return { urls, noDedicatedAccounts };
     }
   } catch (e) {
     console.error('Failed to parse profile URLs:', e);
   }
-  return {};
+  return { urls: {}, noDedicatedAccounts: [] };
 }
 
 // Step 2: Scrape a social media profile page with Firecrawl
@@ -215,6 +220,7 @@ async function synthesizeSocialMetricsWithAI(
   competitors: Competitor[],
   followerData: Record<string, { count: number | null; source: 'scraped' | 'searched' | 'estimated' }>,
   profileUrls: Record<string, string>,
+  noDedicatedAccounts: string[],
   lovableApiKey: string
 ): Promise<SocialPlatformMetrics[]> {
   const totalCompetitors = (competitors?.length || 3) + 1;
@@ -285,7 +291,7 @@ Return ONLY valid JSON (no markdown) in this exact structure:
     if (!response.ok) {
       const errText = await response.text();
       console.error('Lovable AI error:', response.status, errText);
-      return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors);
+      return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors, noDedicatedAccounts);
     }
 
     const aiData = await response.json();
@@ -295,7 +301,7 @@ Return ONLY valid JSON (no markdown) in this exact structure:
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('No JSON found in AI response');
-      return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors);
+      return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors, noDedicatedAccounts);
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
@@ -304,6 +310,31 @@ Return ONLY valid JSON (no markdown) in this exact structure:
     return allPlatforms.map((platformName) => {
       const aiP = aiPlatforms.find((p: any) => p.platform === platformName);
       const fd = followerData[platformName];
+      const isNoDedicatedAccount = noDedicatedAccounts.includes(platformName) && !profileUrls[platformName] && !fd?.count;
+
+      if (isNoDedicatedAccount) {
+        return {
+          platform: platformName as SocialPlatformMetrics['platform'],
+          hotelMetrics: {
+            followers: 0,
+            posts: 0,
+            engagement: 0,
+            lastPostDate: '',
+            contentTypes: [],
+          },
+          competitorAverage: {
+            followers: aiP?.competitor_avg_followers ?? 0,
+            posts: aiP?.competitor_avg_posts ?? 0,
+            engagement: aiP?.competitor_avg_engagement ?? 0,
+          },
+          rank: totalCompetitors,
+          totalCompetitors,
+          status: 'inactive' as const,
+          recommendation: getDefaultRecommendation(platformName, 'inactive'),
+          dataSource: 'estimated' as const,
+          noDedicatedAccount: true,
+        } as SocialPlatformMetrics;
+      }
 
       // Prefer real scraped follower count over AI estimate
       const followers = (fd?.count != null) ? fd.count : (aiP?.followers ?? getEstimatedFollowers(platformName));
@@ -333,12 +364,13 @@ Return ONLY valid JSON (no markdown) in this exact structure:
         status,
         recommendation: aiP?.recommendation ?? getDefaultRecommendation(platformName, status),
         dataSource,
+        noDedicatedAccount: false,
       } as SocialPlatformMetrics;
     });
 
   } catch (e) {
     console.error('AI synthesis failed:', e);
-    return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors);
+    return buildFallbackMetrics(followerData, profileUrls, allPlatforms, totalCompetitors, noDedicatedAccounts);
   }
 }
 
@@ -346,10 +378,27 @@ function buildFallbackMetrics(
   followerData: Record<string, { count: number | null; source: 'scraped' | 'searched' | 'estimated' }>,
   profileUrls: Record<string, string>,
   allPlatforms: string[],
-  totalCompetitors: number
+  totalCompetitors: number,
+  noDedicatedAccounts: string[] = []
 ): SocialPlatformMetrics[] {
   return allPlatforms.map((platform) => {
     const fd = followerData[platform];
+    const isNoDedicatedAccount = noDedicatedAccounts.includes(platform) && !profileUrls[platform] && !fd?.count;
+
+    if (isNoDedicatedAccount) {
+      return {
+        platform: platform as SocialPlatformMetrics['platform'],
+        hotelMetrics: { followers: 0, posts: 0, engagement: 0, lastPostDate: '', contentTypes: [] },
+        competitorAverage: { followers: 0, posts: 0, engagement: 0 },
+        rank: totalCompetitors,
+        totalCompetitors,
+        status: 'inactive' as const,
+        recommendation: getDefaultRecommendation(platform, 'inactive'),
+        dataSource: 'estimated' as const,
+        noDedicatedAccount: true,
+      } as SocialPlatformMetrics;
+    }
+
     const followers = fd?.count ?? getEstimatedFollowers(platform);
     const hasProfile = !!profileUrls[platform];
     const status: SocialPlatformMetrics['status'] = (!hasProfile && !fd?.count) ? 'inactive' : 'behind';
@@ -372,6 +421,7 @@ function buildFallbackMetrics(
       status,
       recommendation: getDefaultRecommendation(platform, status),
       dataSource: fd?.source ?? 'estimated',
+      noDedicatedAccount: false,
     } as SocialPlatformMetrics;
   });
 }
@@ -405,7 +455,7 @@ serve(async (req) => {
       ['facebook', 'instagram', 'tiktok', 'youtube', 'linkedin'];
 
     // Step 1: Find social media profile URLs
-    const profileUrls = await findSocialProfileUrls(
+    const { urls: profileUrls, noDedicatedAccounts } = await findSocialProfileUrls(
       hotel.name,
       hotel.city || 'unknown',
       hotel.state || '',
@@ -495,6 +545,7 @@ Use null if you genuinely cannot find the data. Do NOT make up numbers.`
       competitors,
       followerCounts,
       profileUrls,
+      noDedicatedAccounts,
       LOVABLE_API_KEY
     );
 
