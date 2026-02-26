@@ -96,6 +96,8 @@ function extractRatingFromText(text: string, platform?: string): number | null {
       /(\d{1,2}\.\d)\s*(?:\/\s*10|out\s+of\s+10)/i,
       /(?:review\s+score|guest\s+review)[:\s]*(\d{1,2}(?:\.\d)?)/i,
       /(?:scored?)\s+(\d{1,2}(?:\.\d)?)\s/i,
+      /(\d\.\d)\s*(?:Very Good|Superb|Exceptional|Good|Fabulous|Wonderful|Pleasant|Review score)/i,
+      /(?:Very Good|Superb|Exceptional|Good|Fabulous|Wonderful|Pleasant)\s+(\d\.\d)/i,
     ];
     for (const p of bookingPatterns) {
       const m = text.match(p);
@@ -152,6 +154,17 @@ async function firecrawlScrapeMarkdown(url: string, firecrawlApiKey: string): Pr
   }
 }
 
+// Generate fallback search URLs for platforms when Perplexity can't find direct listings
+function generateFallbackUrls(hotel: Hotel): Partial<Record<PlatformId, string>> {
+  const encodedName = encodeURIComponent(`${hotel.name} ${hotel.city} ${hotel.state}`);
+  return {
+    booking: `https://www.booking.com/searchresults.html?ss=${encodedName}`,
+    expedia: `https://www.expedia.com/Hotel-Search?destination=${encodedName}`,
+    yelp: `https://www.yelp.com/search?find_desc=${encodeURIComponent(hotel.name)}&find_loc=${encodeURIComponent(`${hotel.city}, ${hotel.state}`)}`,
+    agoda: `https://www.agoda.com/search?searchText=${encodedName}`,
+  };
+}
+
 // Step 1: Use Perplexity to find direct listing URLs for each platform
 async function findPlatformListingUrls(
   hotel: Hotel,
@@ -184,6 +197,9 @@ Schema:
 Rules:
 - Use the official platform domain for each URL.
 - Prefer a hotel details/listing page (not generic search results), where rating + total reviews are visible.
+- For Booking.com, look for URLs like: https://www.booking.com/hotel/us/hotel-name.html
+- For Expedia, look for URLs like: https://www.expedia.com/Hotel-Name.hXXXXXXX.Hotel-Information
+- For TripAdvisor, look for URLs like: https://www.tripadvisor.com/Hotel_Review-gXXXXX-dXXXXXXX-Reviews-Hotel_Name.html
 - If you can't find a confident match, return null for that platform.`
         },
         {
@@ -207,11 +223,21 @@ Find the direct listing URLs on TripAdvisor, Google reviews panel, Yelp, Booking
   const content = data.choices?.[0]?.message?.content || '';
   try {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return JSON.parse(content);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
+    
+    // Fill in fallback URLs for any platforms that came back null
+    const fallbacks = generateFallbackUrls(hotel);
+    for (const [platform, fallbackUrl] of Object.entries(fallbacks)) {
+      if (!parsed[platform]) {
+        parsed[platform] = fallbackUrl;
+        console.log(`Using fallback URL for ${platform}: ${fallbackUrl}`);
+      }
+    }
+    
+    return parsed;
   } catch (e) {
     console.error('Failed to parse listing URL JSON from Perplexity', e);
-    return {};
+    return generateFallbackUrls(hotel);
   }
 }
 
@@ -527,12 +553,12 @@ serve(async (req) => {
     platforms = ensureAllPlatforms(platforms, totalCompetitors);
 
     // Dedicated Booking.com verification if still missing
+    // Always verify Booking.com data with a dedicated lookup
     const bookingPlatform = platforms.find(p => p.platform === 'booking');
     const bookingScraped = scrapedData.find(s => s.platform === 'booking');
     const bookingNeedsVerification = bookingPlatform &&
-      bookingPlatform.hotelMetrics.rating == null &&
-      bookingPlatform.hotelMetrics.reviewCount == null &&
-      !bookingScraped?.rating && !bookingScraped?.reviewCount;
+      (bookingPlatform.hotelMetrics.rating == null ||
+       (!bookingScraped?.rating && !bookingScraped?.reviewCount));
 
     if (bookingNeedsVerification && PERPLEXITY_API_KEY) {
       try {
