@@ -596,18 +596,25 @@ serve(async (req) => {
             messages: [
               {
                 role: 'system',
-                content: `You are a hotel data researcher. Search Booking.com for the EXACT hotel specified. Booking.com uses a 1-10 rating scale.
+                content: `You are a hotel data researcher. Search Booking.com for the EXACT hotel specified. Booking.com uses a 1-10 rating scale for guest review scores.
+
+CRITICAL VERIFICATION RULES:
+- You MUST verify you are looking at the CORRECT hotel by matching BOTH the hotel name AND city/state.
+- The "Guest Review Score" on Booking.com is the main score shown prominently (e.g., 8.2, 9.0, 7.5). Do NOT confuse it with sub-scores like "Location" or "Cleanliness".
+- The review count is the TOTAL number of guest reviews, not the number of ratings for a sub-category.
+- If the hotel has very few reviews (under 50), that's still valid data - report it accurately.
+- If you cannot find the hotel or are unsure about the data, return null values rather than guessing.
+
 Return ONLY valid JSON:
-{ "rating_out_of_10": <number like 8.2 or null>, "review_count": <integer or null>, "listing_url": "<direct booking.com hotel page URL or null>", "search_position": <number or null> }
-IMPORTANT: You MUST search for and find the actual Booking.com guest review score. Do NOT return null if the hotel exists on Booking.com.`,
+{ "rating_out_of_10": <number like 8.2 or null>, "review_count": <integer or null>, "listing_url": "<direct booking.com hotel page URL or null>", "search_position": <number or null> }`,
               },
               {
                 role: 'user',
-                content: `Search Booking.com for this hotel and tell me its guest review score and number of reviews:
-Hotel name: ${hotel.name}
+                content: `Search Booking.com for this SPECIFIC hotel:
+Hotel name: "${hotel.name}"
 Address: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
-The Booking.com listing URL is likely: https://www.booking.com/hotel/us/towneplace-suites-knoxville-cedar-bluff.html
-What is the exact guest review score out of 10 and total number of guest reviews?`,
+
+Find the Booking.com guest review score (out of 10) and total number of guest reviews for this exact hotel. Make sure you are looking at the correct property and not a different hotel with a similar name.`,
               },
             ],
           }),
@@ -671,17 +678,24 @@ What is the exact guest review score out of 10 and total number of guest reviews
             messages: [
               {
                 role: 'system',
-                content: `You are a hotel data researcher. Search Expedia.com for the EXACT hotel specified. Expedia uses a 1-10 rating scale.
+                content: `You are a hotel data researcher. Search Expedia.com for the EXACT hotel specified. Expedia uses a 1-10 rating scale for guest review scores.
+
+CRITICAL VERIFICATION RULES:
+- You MUST verify you are looking at the CORRECT hotel by matching BOTH the hotel name AND city/state.
+- The guest review score on Expedia is the main score (e.g., 8.6, 9.0). Do NOT confuse with sub-scores.
+- Report the TOTAL number of guest reviews accurately.
+- If you cannot find the hotel or are unsure, return null values rather than guessing.
+
 Return ONLY valid JSON:
-{ "rating_out_of_10": <number like 8.6 or null>, "review_count": <integer or null>, "listing_url": "<direct expedia hotel page URL or null>" }
-IMPORTANT: You MUST search for and find the actual Expedia guest review score and review count. Do NOT return null if the hotel exists on Expedia.`,
+{ "rating_out_of_10": <number like 8.6 or null>, "review_count": <integer or null>, "listing_url": "<direct expedia hotel page URL or null>" }`,
               },
               {
                 role: 'user',
-                content: `Search Expedia.com for this hotel and tell me its guest review score and number of reviews:
-Hotel name: ${hotel.name}
+                content: `Search Expedia.com for this SPECIFIC hotel:
+Hotel name: "${hotel.name}"
 Address: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
-What is the exact guest review score out of 10 and total number of guest reviews on Expedia?`,
+
+Find the Expedia guest review score (out of 10) and total number of guest reviews for this exact hotel.`,
               },
             ],
           }),
