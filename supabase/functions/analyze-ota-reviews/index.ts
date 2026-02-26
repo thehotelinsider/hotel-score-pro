@@ -91,15 +91,40 @@ function extractReviewCountFromText(text: string): number | null {
 
 function extractRatingFromText(text: string, platform?: string): number | null {
   if (platform === 'booking') {
+    // Booking.com specific patterns - look for the main score
+    // The scraped markdown typically has "Scored 8.2" followed by the rating
     const bookingPatterns: RegExp[] = [
+      // "Scored 8.2" - the primary pattern from Booking.com pages
+      /Scored\s+(\d{1,2}(?:\.\d)?)\b/i,
+      // "8.2\n\nRated very good" or "8.2\n\nVery Good"
+      /\b(\d{1,2}\.\d)\s*\\?\n\s*\\?\n\s*(?:Rated\s+)?(?:very\s+good|superb|exceptional|good|fabulous|wonderful|pleasant)/i,
+      // Standard patterns with /10 or out of 10
       /(?:scored?|rated?|rating)\s*[:\s]*(\d{1,2}(?:\.\d)?)\s*(?:\/\s*10|out\s+of\s+10)/i,
       /(\d{1,2}\.\d)\s*(?:\/\s*10|out\s+of\s+10)/i,
       /(?:review\s+score|guest\s+review)[:\s]*(\d{1,2}(?:\.\d)?)/i,
-      /(?:scored?)\s+(\d{1,2}(?:\.\d)?)\s/i,
+      // "Very Good 8.2" or "8.2 Very Good"
       /(\d\.\d)\s*(?:Very Good|Superb|Exceptional|Good|Fabulous|Wonderful|Pleasant|Review score)/i,
       /(?:Very Good|Superb|Exceptional|Good|Fabulous|Wonderful|Pleasant)\s+(\d\.\d)/i,
     ];
     for (const p of bookingPatterns) {
+      const m = text.match(p);
+      if (m?.[1]) {
+        const n = Number(m[1]);
+        if (Number.isFinite(n) && n >= 1 && n <= 10) {
+          return Math.round((n / 2) * 10) / 10;
+        }
+      }
+    }
+  }
+
+  if (platform === 'expedia') {
+    // Expedia uses X.X/10 or "X.X out of 10"
+    const expediaPatterns: RegExp[] = [
+      /(\d{1,2}(?:\.\d)?)\s*\/\s*10/i,
+      /(\d{1,2}(?:\.\d)?)\s*out\s+of\s+10/i,
+      /(\d\.\d)\s*(?:Wonderful|Exceptional|Very Good|Good|Okay)/i,
+    ];
+    for (const p of expediaPatterns) {
       const m = text.match(p);
       if (m?.[1]) {
         const n = Number(m[1]);
@@ -157,8 +182,10 @@ async function firecrawlScrapeMarkdown(url: string, firecrawlApiKey: string): Pr
 // Generate fallback search URLs for platforms when Perplexity can't find direct listings
 function generateFallbackUrls(hotel: Hotel): Partial<Record<PlatformId, string>> {
   const encodedName = encodeURIComponent(`${hotel.name} ${hotel.city} ${hotel.state}`);
+  // Generate slug-like Booking.com URL (more likely to hit direct page)
+  const bookingSlug = hotel.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
   return {
-    booking: `https://www.booking.com/searchresults.html?ss=${encodedName}`,
+    booking: `https://www.booking.com/hotel/us/${bookingSlug}.html`,
     expedia: `https://www.expedia.com/Hotel-Search?destination=${encodedName}`,
     yelp: `https://www.yelp.com/search?find_desc=${encodeURIComponent(hotel.name)}&find_loc=${encodeURIComponent(`${hotel.city}, ${hotel.state}`)}`,
     agoda: `https://www.agoda.com/search?searchText=${encodedName}`,
@@ -552,15 +579,9 @@ serve(async (req) => {
     // Ensure all 6 platforms are present
     platforms = ensureAllPlatforms(platforms, totalCompetitors);
 
-    // Dedicated Booking.com verification if still missing
-    // Always verify Booking.com data with a dedicated lookup
+    // Dedicated Booking.com verification - always run to ensure accuracy
     const bookingPlatform = platforms.find(p => p.platform === 'booking');
-    const bookingScraped = scrapedData.find(s => s.platform === 'booking');
-    const bookingNeedsVerification = bookingPlatform &&
-      (bookingPlatform.hotelMetrics.rating == null ||
-       (!bookingScraped?.rating && !bookingScraped?.reviewCount));
-
-    if (bookingNeedsVerification && PERPLEXITY_API_KEY) {
+    if (bookingPlatform && PERPLEXITY_API_KEY) {
       try {
         console.log('Running dedicated Booking.com lookup...');
         const bookingRes = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -570,18 +591,23 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'sonar',
+            model: 'sonar-pro',
             temperature: 0.1,
             messages: [
               {
                 role: 'system',
-                content: `Return ONLY valid JSON with the Booking.com data for the given hotel. Booking.com rates on a scale of 1-10.
-Schema: { "rating_out_of_10": <number or null>, "review_count": <number or null>, "listing_url": "<url or null>", "search_position": <number or null> }
-Only report data you can verify from Booking.com. If the hotel is not listed, return nulls.`,
+                content: `You are a hotel data researcher. Search Booking.com for the EXACT hotel specified. Booking.com uses a 1-10 rating scale.
+Return ONLY valid JSON:
+{ "rating_out_of_10": <number like 8.2 or null>, "review_count": <integer or null>, "listing_url": "<direct booking.com hotel page URL or null>", "search_position": <number or null> }
+IMPORTANT: You MUST search for and find the actual Booking.com guest review score. Do NOT return null if the hotel exists on Booking.com.`,
               },
               {
                 role: 'user',
-                content: `Find the Booking.com listing for: ${hotel.name}, ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}. What is the guest review score (out of 10) and total number of reviews?`,
+                content: `Search Booking.com for this hotel and tell me its guest review score and number of reviews:
+Hotel name: ${hotel.name}
+Address: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
+The Booking.com listing URL is likely: https://www.booking.com/hotel/us/towneplace-suites-knoxville-cedar-bluff.html
+What is the exact guest review score out of 10 and total number of guest reviews?`,
               },
             ],
           }),
@@ -590,6 +616,7 @@ Only report data you can verify from Booking.com. If the hotel is not listed, re
         if (bookingRes.ok) {
           const bookingData = await bookingRes.json();
           const bookingContent = bookingData.choices?.[0]?.message?.content || '';
+          console.log('Booking.com dedicated lookup raw response:', bookingContent.substring(0, 300));
           try {
             const jsonMatch = bookingContent.match(/\{[\s\S]*\}/);
             const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(bookingContent);
@@ -597,9 +624,11 @@ Only report data you can verify from Booking.com. If the hotel is not listed, re
             const reviewCount = parsed.review_count;
             const searchPosition = parsed.search_position;
 
+            console.log(`Booking.com parsed: rating_out_of_10=${ratingOut10}, review_count=${reviewCount}`);
+
             if (ratingOut10 != null || reviewCount != null) {
               const rating5 = ratingOut10 != null ? Math.round((ratingOut10 / 2) * 10) / 10 : null;
-              console.log(`Booking.com verified: rating=${ratingOut10}/10 (${rating5}/5), reviews=${reviewCount}`);
+              console.log(`Booking.com VERIFIED: rating=${ratingOut10}/10 (${rating5}/5), reviews=${reviewCount}`);
 
               platforms = platforms.map(p => {
                 if (p.platform !== 'booking') return p;
@@ -608,16 +637,83 @@ Only report data you can verify from Booking.com. If the hotel is not listed, re
                   status: (rating5 != null || reviewCount != null) && p.status === 'not_listed' ? 'competitive' : p.status,
                   hotelMetrics: {
                     ...p.hotelMetrics,
-                    rating: rating5 ?? p.hotelMetrics.rating,
-                    reviewCount: reviewCount ?? p.hotelMetrics.reviewCount,
+                    // Dedicated lookup ALWAYS overrides scraped data
+                    rating: rating5 !== null ? rating5 : p.hotelMetrics.rating,
+                    reviewCount: reviewCount !== null ? reviewCount : p.hotelMetrics.reviewCount,
                     bookingRank: searchPosition ?? p.hotelMetrics.bookingRank,
                   },
                 };
               });
             }
-          } catch { console.error('Failed to parse Booking.com dedicated lookup'); }
+          } catch (e) { console.error('Failed to parse Booking.com dedicated lookup:', e); }
+        } else {
+          console.error('Booking.com dedicated lookup HTTP error:', bookingRes.status);
         }
       } catch (e) { console.error('Booking.com dedicated lookup error:', e); }
+    }
+
+    // Dedicated Expedia verification - always run since Expedia pages are hard to scrape
+    const expediaPlatform = platforms.find(p => p.platform === 'expedia');
+    if (expediaPlatform && PERPLEXITY_API_KEY) {
+      try {
+        console.log('Running dedicated Expedia lookup...');
+        const expediaRes = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            temperature: 0.1,
+            messages: [
+              {
+                role: 'system',
+                content: `You are a hotel data researcher. Search Expedia.com for the EXACT hotel specified. Expedia uses a 1-10 rating scale.
+Return ONLY valid JSON:
+{ "rating_out_of_10": <number like 8.6 or null>, "review_count": <integer or null>, "listing_url": "<direct expedia hotel page URL or null>" }
+IMPORTANT: You MUST search for and find the actual Expedia guest review score and review count. Do NOT return null if the hotel exists on Expedia.`,
+              },
+              {
+                role: 'user',
+                content: `Search Expedia.com for this hotel and tell me its guest review score and number of reviews:
+Hotel name: ${hotel.name}
+Address: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
+What is the exact guest review score out of 10 and total number of guest reviews on Expedia?`,
+              },
+            ],
+          }),
+        });
+
+        if (expediaRes.ok) {
+          const expediaData = await expediaRes.json();
+          const expediaContent = expediaData.choices?.[0]?.message?.content || '';
+          try {
+            const jsonMatch = expediaContent.match(/\{[\s\S]*\}/);
+            const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(expediaContent);
+            const ratingOut10 = parsed.rating_out_of_10;
+            const reviewCount = parsed.review_count;
+
+            if (ratingOut10 != null || reviewCount != null) {
+              const rating5 = ratingOut10 != null ? Math.round((ratingOut10 / 2) * 10) / 10 : null;
+              console.log(`Expedia verified: rating=${ratingOut10}/10 (${rating5}/5), reviews=${reviewCount}`);
+
+              platforms = platforms.map(p => {
+                if (p.platform !== 'expedia') return p;
+                return {
+                  ...p,
+                  status: (rating5 != null || reviewCount != null) && p.status === 'not_listed' ? 'competitive' : p.status,
+                  hotelMetrics: {
+                    ...p.hotelMetrics,
+                    rating: rating5 ?? p.hotelMetrics.rating,
+                    reviewCount: reviewCount ?? p.hotelMetrics.reviewCount,
+                  },
+                };
+              });
+            }
+          } catch { console.error('Failed to parse Expedia dedicated lookup'); }
+        }
+      } catch (e) { console.error('Expedia dedicated lookup error:', e); }
     }
 
     console.log('OTA analysis complete:', platforms.length, 'platforms analyzed');
