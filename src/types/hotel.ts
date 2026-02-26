@@ -107,6 +107,8 @@ export interface OTAReviewPlatformMetrics {
     listingCompleteness: number | null; // Percentage 0-100
     lastReviewDate: string;
     bookingRank?: number | null; // For OTAs, position in search results
+    originalRating?: number | null; // Original rating before scale conversion (e.g., 8.2 for Booking.com)
+    ratingScale?: number; // The scale the original rating is on (e.g., 10 for Booking.com/Expedia)
   };
   competitorAverage: {
     rating: number | null;
