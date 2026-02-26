@@ -130,7 +130,11 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Star className="w-3 h-3 fill-warning text-warning" />
-                <span>{formatRating(platform.hotelMetrics?.rating)}</span>
+                <span>
+                  {platform.hotelMetrics?.originalRating != null && platform.hotelMetrics?.ratingScale
+                    ? `${platform.hotelMetrics.originalRating}/${platform.hotelMetrics.ratingScale}`
+                    : formatRating(platform.hotelMetrics?.rating)}
+                </span>
                 <span>•</span>
                 <span>{formatNumber(platform.hotelMetrics?.reviewCount)} reviews</span>
               </div>
@@ -163,7 +167,11 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 <Star className="w-3.5 h-3.5 text-warning" />
                 <span className="text-xs text-muted-foreground">Rating</span>
               </div>
-              <p className="font-semibold text-foreground">{formatRating(platform.hotelMetrics?.rating)} / 5</p>
+              <p className="font-semibold text-foreground">
+                {platform.hotelMetrics?.originalRating != null && platform.hotelMetrics?.ratingScale
+                  ? `${platform.hotelMetrics.originalRating} / ${platform.hotelMetrics.ratingScale}`
+                  : `${formatRating(platform.hotelMetrics?.rating)} / 5`}
+              </p>
               <p className={`text-xs ${ratingDiff >= 0 ? 'text-success' : 'text-danger'}`}>
                 {ratingDiff >= 0 ? '+' : ''}{ratingDiff.toFixed(1)} vs avg
               </p>

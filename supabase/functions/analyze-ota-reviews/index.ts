@@ -641,6 +641,8 @@ What is the exact guest review score out of 10 and total number of guest reviews
                     rating: rating5 !== null ? rating5 : p.hotelMetrics.rating,
                     reviewCount: reviewCount !== null ? reviewCount : p.hotelMetrics.reviewCount,
                     bookingRank: searchPosition ?? p.hotelMetrics.bookingRank,
+                    originalRating: ratingOut10 ?? p.hotelMetrics?.originalRating ?? null,
+                    ratingScale: 10,
                   },
                 };
               });
@@ -707,6 +709,8 @@ What is the exact guest review score out of 10 and total number of guest reviews
                     ...p.hotelMetrics,
                     rating: rating5 ?? p.hotelMetrics.rating,
                     reviewCount: reviewCount ?? p.hotelMetrics.reviewCount,
+                    originalRating: ratingOut10 ?? p.hotelMetrics?.originalRating ?? null,
+                    ratingScale: 10,
                   },
                 };
               });
