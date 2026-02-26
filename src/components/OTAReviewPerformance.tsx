@@ -34,13 +34,6 @@ const platformConfig = {
     borderColor: 'border-red-200',
     icon: '⭐',
   },
-  facebook_reviews: {
-    label: 'Facebook Reviews',
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    icon: '👍',
-  },
   expedia: {
     label: 'Expedia',
     color: 'text-yellow-700',
