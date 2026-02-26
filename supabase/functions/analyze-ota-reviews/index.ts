@@ -24,7 +24,7 @@ interface Competitor {
 }
 
 interface OTAReviewPlatformMetrics {
-  platform: 'tripadvisor' | 'google_reviews' | 'yelp' | 'facebook_reviews' | 'expedia' | 'booking' | 'agoda';
+  platform: 'tripadvisor' | 'google_reviews' | 'yelp' | 'expedia' | 'booking' | 'agoda';
   platformType: 'review' | 'ota';
   hotelMetrics: {
     rating: number | null;
@@ -62,7 +62,6 @@ const PLATFORM_META: Record<PlatformId, { platformType: 'review' | 'ota'; label:
   google_reviews: { platformType: 'review', label: 'Google Reviews' },
   tripadvisor: { platformType: 'review', label: 'TripAdvisor' },
   yelp: { platformType: 'review', label: 'Yelp' },
-  facebook_reviews: { platformType: 'review', label: 'Facebook Reviews' },
   booking: { platformType: 'ota', label: 'Booking.com' },
   expedia: { platformType: 'ota', label: 'Expedia' },
   agoda: { platformType: 'ota', label: 'Agoda' },
@@ -236,7 +235,6 @@ Schema:
   "tripadvisor": "https://..." | null,
   "google_reviews": "https://..." | null,
   "yelp": "https://..." | null,
-  "facebook_reviews": "https://..." | null,
   "booking": "https://..." | null,
   "expedia": "https://..." | null,
   "agoda": "https://..." | null
@@ -253,7 +251,7 @@ Rules:
 Name: ${hotel.name}
 Location: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
 
-Find the direct listing URLs on TripAdvisor, Google reviews panel, Yelp, Facebook reviews, Booking.com, Expedia, and Agoda.`
+Find the direct listing URLs on TripAdvisor, Google reviews panel, Yelp, Booking.com, Expedia, and Agoda.`
         }
       ],
     }),
@@ -402,7 +400,7 @@ Return ONLY a valid JSON array with platform data. Be accurate - only report dat
 
 [
    {
-     "platform": "tripadvisor" | "google_reviews" | "yelp" | "facebook_reviews" | "expedia" | "booking" | "agoda",
+     "platform": "tripadvisor" | "google_reviews" | "yelp" | "expedia" | "booking" | "agoda",
      "platformType": "review" | "ota",
      "listingUrl": "<direct hotel listing/details url on that platform>" | null,
      "hotelMetrics": {
@@ -428,7 +426,7 @@ Return ONLY a valid JSON array with platform data. Be accurate - only report dat
    }
 ]
 
-Include all 7 platforms: TripAdvisor, Google Reviews, Yelp, Facebook Reviews, Expedia, Booking.com, Agoda`
+Include all 6 platforms: TripAdvisor, Google Reviews, Yelp, Expedia, Booking.com, Agoda`
         },
         {
           role: 'user',
@@ -441,7 +439,7 @@ Known Rating: ${hotel.rating}/5 (${hotel.reviewCount} reviews)
 SCRAPED DATA FROM PLATFORMS:
  ${scrapedContext || 'No scraped data available.'}
 
-Please find their ACTUAL ratings and review counts on TripAdvisor, Google Reviews, Booking.com, Expedia, Yelp, Facebook, and Agoda. Use the scraped data where available and search for additional information.`
+Please find their ACTUAL ratings and review counts on TripAdvisor, Google Reviews, Booking.com, Expedia, Yelp, and Agoda. Use the scraped data where available and search for additional information.`
         }
       ],
     }),
@@ -533,7 +531,7 @@ serve(async (req) => {
            .filter((x): x is { platform: PlatformId; url: string } => typeof x.url === 'string' && x.url.startsWith('http'));
 
          // Keep runtime predictable: only verify the highest-impact platforms.
-         const priority: PlatformId[] = ['google_reviews', 'tripadvisor', 'booking', 'expedia', 'yelp', 'agoda', 'facebook_reviews'];
+         const priority: PlatformId[] = ['google_reviews', 'tripadvisor', 'booking', 'expedia', 'yelp', 'agoda'];
          const MAX_SCRAPES = 5;
          const targets = withUrls
            .sort((a, b) => priority.indexOf(a.platform) - priority.indexOf(b.platform))
@@ -701,7 +699,6 @@ function ensureAllPlatforms(
     { platform: 'booking', platformType: 'ota' },
     { platform: 'expedia', platformType: 'ota' },
     { platform: 'yelp', platformType: 'review' },
-    { platform: 'facebook_reviews', platformType: 'review' },
     { platform: 'agoda', platformType: 'ota' },
   ];
 
@@ -757,11 +754,6 @@ function getRecommendation(platform: string, status: string): string {
       leading: 'Keep engaging with the Yelp community and respond to all reviews.',
       competitive: 'Add more business photos and ensure all amenity information is current.',
       behind: 'Claim and optimize your listing with complete information and high-quality photos.',
-    },
-    facebook_reviews: {
-      leading: 'Continue your social engagement and cross-promote positive reviews.',
-      competitive: 'Post more frequently and engage with guests who leave recommendations.',
-      behind: 'Increase Facebook activity and ask satisfied guests to leave recommendations.',
     },
     booking: {
       leading: 'Maintain Genius partner status and keep response times under 24 hours.',

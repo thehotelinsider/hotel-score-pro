@@ -96,7 +96,7 @@ export interface SocialPlatformMetrics {
 }
 
 export interface OTAReviewPlatformMetrics {
-  platform: 'tripadvisor' | 'google_reviews' | 'yelp' | 'facebook_reviews' | 'expedia' | 'booking' | 'agoda';
+  platform: 'tripadvisor' | 'google_reviews' | 'yelp' | 'expedia' | 'booking' | 'agoda';
   platformType: 'review' | 'ota';
   hotelMetrics: {
     rating: number | null;
