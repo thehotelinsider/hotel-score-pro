@@ -74,7 +74,25 @@ function parseNumberLike(input: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function extractReviewCountFromText(text: string): number | null {
+function extractReviewCountFromText(text: string, platform?: string): number | null {
+  if (platform === 'booking') {
+    // Booking.com specific: "44 reviews" near "Scored X.X" or "Very Good"
+    const bookingReviewPatterns: RegExp[] = [
+      /(?:Very Good|Superb|Exceptional|Good|Fabulous|Wonderful|Pleasant)\s*(?:\\\\?\n|\n|\s)*(\d+)\s+reviews?/i,
+      /Scored\s+\d{1,2}(?:\.\d)?\s*(?:\\\\?\n|\n|\s)*(?:\d{1,2}\.\d\s*(?:\\\\?\n|\n|\s)*)*(?:Rated\s+)?(?:very\s+good|superb|exceptional|good|fabulous|wonderful|pleasant)\s*(?:\\\\?\n|\n|\s)*(?:Very Good|Superb|Exceptional|Good|Fabulous|Wonderful|Pleasant)\s*(?:\\\\?\n|\n|\s)*(\d+)\s+reviews?/i,
+    ];
+    for (const p of bookingReviewPatterns) {
+      const m = text.match(p);
+      if (m) {
+        const numStr = m[1] || m[2];
+        if (numStr) {
+          const n = parseInt(numStr, 10);
+          if (Number.isFinite(n) && n > 0) return n;
+        }
+      }
+    }
+  }
+
   const patterns: RegExp[] = [
     /([0-9][0-9,\.\s]{0,12})\s+(?:guest\s+)?reviews?/i,
     /reviews?\s*\(?\s*([0-9][0-9,\.\s]{0,12})\s*\)?/i,
@@ -92,12 +110,12 @@ function extractReviewCountFromText(text: string): number | null {
 function extractRatingFromText(text: string, platform?: string): number | null {
   if (platform === 'booking') {
     // Booking.com specific patterns - look for the main score
-    // The scraped markdown typically has "Scored 8.2" followed by the rating
+    // The scraped markdown may have "Scored 8.2" or "[Scored 8.2 \\" or similar formats
     const bookingPatterns: RegExp[] = [
-      // "Scored 8.2" - the primary pattern from Booking.com pages
-      /Scored\s+(\d{1,2}(?:\.\d)?)\b/i,
-      // "8.2\n\nRated very good" or "8.2\n\nVery Good"
-      /\b(\d{1,2}\.\d)\s*\\?\n\s*\\?\n\s*(?:Rated\s+)?(?:very\s+good|superb|exceptional|good|fabulous|wonderful|pleasant)/i,
+      // "Scored 8.2" - the primary pattern from Booking.com pages (may have brackets/backslashes)
+      /Scored\s+(\d{1,2}(?:\.\d)?)/i,
+      // "8.2\n\nRated very good" or with escaped newlines
+      /(\d{1,2}\.\d)\s*(?:\\\\?\n|\n)\s*(?:\\\\?\n|\n)\s*(?:Rated\s+)?(?:very\s+good|superb|exceptional|good|fabulous|wonderful|pleasant)/i,
       // Standard patterns with /10 or out of 10
       /(?:scored?|rated?|rating)\s*[:\s]*(\d{1,2}(?:\.\d)?)\s*(?:\/\s*10|out\s+of\s+10)/i,
       /(\d{1,2}\.\d)\s*(?:\/\s*10|out\s+of\s+10)/i,
@@ -286,7 +304,7 @@ async function scrapeListingPages(
       if (!markdown) return null;
 
       const rating = extractRatingFromText(markdown, platform) ?? undefined;
-      const reviewCount = extractReviewCountFromText(markdown) ?? undefined;
+      const reviewCount = extractReviewCountFromText(markdown, platform) ?? undefined;
 
       console.log(`  ${platform} scraped: rating=${rating}, reviewCount=${reviewCount}`);
 
@@ -584,79 +602,103 @@ serve(async (req) => {
     if (bookingPlatform && PERPLEXITY_API_KEY) {
       try {
         console.log('Running dedicated Booking.com lookup...');
-        const bookingRes = await fetch('https://api.perplexity.ai/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'sonar-pro',
-            temperature: 0.1,
-            messages: [
-              {
-                role: 'system',
-                content: `You are a hotel data researcher. Search Booking.com for the EXACT hotel specified. Booking.com uses a 1-10 rating scale for guest review scores.
+        
+        // First try: scrape the known correct Booking.com URL directly with Firecrawl
+        const bookingSlug = hotel.name.toLowerCase().replace(/\s+by\s+marriott\s*/i, ' ').trim().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        const knownBookingUrl = `https://www.booking.com/hotel/us/${bookingSlug}.html`;
+        console.log(`Trying known Booking.com URL: ${knownBookingUrl}`);
+        
+        let bookingRating: number | null = null;
+        let bookingReviews: number | null = null;
+        let bookingSearchPos: number | null = null;
+        let bookingListingUrl: string | null = knownBookingUrl;
+        
+        if (FIRECRAWL_API_KEY) {
+          const markdown = await firecrawlScrapeMarkdown(knownBookingUrl, FIRECRAWL_API_KEY);
+          if (markdown) {
+            bookingRating = extractRatingFromText(markdown, 'booking');
+            bookingReviews = extractReviewCountFromText(markdown, 'booking');
+            console.log(`Booking.com direct scrape: rating=${bookingRating}, reviews=${bookingReviews}`);
+          }
+        }
+        
+        // If Firecrawl scrape failed, try Perplexity with domain filter
+        if (bookingRating == null && bookingReviews == null) {
+          console.log('Firecrawl scrape failed, trying Perplexity with domain filter...');
+          const bookingRes = await fetch('https://api.perplexity.ai/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'sonar-pro',
+              temperature: 0.1,
+              search_domain_filter: ['booking.com'],
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are a hotel data researcher. Find the Booking.com listing for the specified hotel. Booking.com rates hotels on a 1-10 scale.
 
-CRITICAL VERIFICATION RULES:
-- You MUST verify you are looking at the CORRECT hotel by matching BOTH the hotel name AND city/state.
-- The "Guest Review Score" on Booking.com is the main score shown prominently (e.g., 8.2, 9.0, 7.5). Do NOT confuse it with sub-scores like "Location" or "Cleanliness".
-- The review count is the TOTAL number of guest reviews, not the number of ratings for a sub-category.
-- If the hotel has very few reviews (under 50), that's still valid data - report it accurately.
-- If you cannot find the hotel or are unsure about the data, return null values rather than guessing.
+Return ONLY valid JSON (no markdown fences):
+{ "rating_out_of_10": <number like 8.2 or null>, "review_count": <integer or null>, "listing_url": "<URL or null>", "search_position": <number or null> }
 
-Return ONLY valid JSON:
-{ "rating_out_of_10": <number like 8.2 or null>, "review_count": <integer or null>, "listing_url": "<direct booking.com hotel page URL or null>", "search_position": <number or null> }`,
+RULES:
+- Report the OVERALL guest review score (shown as "Scored X.X"), NOT sub-scores.
+- The review count is the total shown near the score.
+- If unsure, return null.`,
+                },
+                {
+                  role: 'user',
+                  content: `Find the Booking.com overall guest review score and total reviews for: "${hotel.name}" at ${hotel.address}, ${hotel.city}, ${hotel.state}`,
+                },
+              ],
+            }),
+          });
+
+          if (bookingRes.ok) {
+            const bookingData = await bookingRes.json();
+            const bookingContent = bookingData.choices?.[0]?.message?.content || '';
+            console.log('Booking.com Perplexity domain-filtered response:', bookingContent.substring(0, 300));
+            try {
+              const jsonMatch = bookingContent.match(/\{[\s\S]*\}/);
+              const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(bookingContent);
+              if (parsed.rating_out_of_10 != null) bookingRating = Math.round((parsed.rating_out_of_10 / 2) * 10) / 10;
+              if (parsed.review_count != null) bookingReviews = parsed.review_count;
+              if (parsed.search_position != null) bookingSearchPos = parsed.search_position;
+              if (parsed.listing_url) bookingListingUrl = parsed.listing_url;
+              
+              // Store original 10-point rating
+              if (parsed.rating_out_of_10 != null) {
+                bookingRating = Math.round((parsed.rating_out_of_10 / 2) * 10) / 10;
+                // We'll set originalRating below
+              }
+              console.log(`Booking.com Perplexity parsed: rating=${parsed.rating_out_of_10}/10, reviews=${parsed.review_count}`);
+            } catch (e) { console.error('Failed to parse Booking.com Perplexity response:', e); }
+          }
+        }
+        
+        // Apply Booking.com data if we have any
+        if (bookingRating != null || bookingReviews != null) {
+          const origRating10 = bookingRating != null ? Math.round(bookingRating * 2 * 10) / 10 : null;
+          console.log(`Booking.com FINAL: rating=${origRating10}/10 (${bookingRating}/5), reviews=${bookingReviews}`);
+          platforms = platforms.map(p => {
+            if (p.platform !== 'booking') return p;
+            return {
+              ...p,
+              status: p.status === 'not_listed' ? 'competitive' : p.status,
+              hotelMetrics: {
+                ...p.hotelMetrics,
+                rating: bookingRating ?? p.hotelMetrics.rating,
+                reviewCount: bookingReviews ?? p.hotelMetrics.reviewCount,
+                bookingRank: bookingSearchPos ?? p.hotelMetrics.bookingRank,
+                originalRating: origRating10 ?? p.hotelMetrics?.originalRating ?? null,
+                ratingScale: 10,
               },
-              {
-                role: 'user',
-                content: `Search Booking.com for this SPECIFIC hotel:
-Hotel name: "${hotel.name}"
-Address: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
-
-Find the Booking.com guest review score (out of 10) and total number of guest reviews for this exact hotel. Make sure you are looking at the correct property and not a different hotel with a similar name.`,
-              },
-            ],
-          }),
-        });
-
-        if (bookingRes.ok) {
-          const bookingData = await bookingRes.json();
-          const bookingContent = bookingData.choices?.[0]?.message?.content || '';
-          console.log('Booking.com dedicated lookup raw response:', bookingContent.substring(0, 300));
-          try {
-            const jsonMatch = bookingContent.match(/\{[\s\S]*\}/);
-            const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(bookingContent);
-            const ratingOut10 = parsed.rating_out_of_10;
-            const reviewCount = parsed.review_count;
-            const searchPosition = parsed.search_position;
-
-            console.log(`Booking.com parsed: rating_out_of_10=${ratingOut10}, review_count=${reviewCount}`);
-
-            if (ratingOut10 != null || reviewCount != null) {
-              const rating5 = ratingOut10 != null ? Math.round((ratingOut10 / 2) * 10) / 10 : null;
-              console.log(`Booking.com VERIFIED: rating=${ratingOut10}/10 (${rating5}/5), reviews=${reviewCount}`);
-
-              platforms = platforms.map(p => {
-                if (p.platform !== 'booking') return p;
-                return {
-                  ...p,
-                  status: (rating5 != null || reviewCount != null) && p.status === 'not_listed' ? 'competitive' : p.status,
-                  hotelMetrics: {
-                    ...p.hotelMetrics,
-                    // Dedicated lookup ALWAYS overrides scraped data
-                    rating: rating5 !== null ? rating5 : p.hotelMetrics.rating,
-                    reviewCount: reviewCount !== null ? reviewCount : p.hotelMetrics.reviewCount,
-                    bookingRank: searchPosition ?? p.hotelMetrics.bookingRank,
-                    originalRating: ratingOut10 ?? p.hotelMetrics?.originalRating ?? null,
-                    ratingScale: 10,
-                  },
-                };
-              });
-            }
-          } catch (e) { console.error('Failed to parse Booking.com dedicated lookup:', e); }
+            };
+          });
         } else {
-          console.error('Booking.com dedicated lookup HTTP error:', bookingRes.status);
+          console.log('Booking.com: no data could be verified from any source');
         }
       } catch (e) { console.error('Booking.com dedicated lookup error:', e); }
     }
@@ -675,6 +717,7 @@ Find the Booking.com guest review score (out of 10) and total number of guest re
           body: JSON.stringify({
             model: 'sonar-pro',
             temperature: 0.1,
+            search_domain_filter: ['expedia.com', 'hotels.com'],
             messages: [
               {
                 role: 'system',
