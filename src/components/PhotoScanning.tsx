@@ -21,10 +21,10 @@ const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos, hotelCi
   // Fetch real photos from Google Places API
   const fetchRealPhotos = useCallback(async () => {
     if (!hotelName || isFetching) return;
-    
+
     setIsFetching(true);
     console.log('Fetching real photos from Google Places for:', hotelName);
-    
+
     try {
       // Build search query with location context
       const searchQuery = [hotelName, hotelCity, hotelState, hotelCountry]
@@ -150,39 +150,31 @@ const PhotoScanning = ({ onComplete, hotelName, hotelImage, hotelPhotos, hotelCi
 
           {/* Scan line effect */}
           <div className="absolute inset-0 pointer-events-none">
-            <div 
+            <div
               className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent shadow-lg animate-scan"
               style={{ boxShadow: '0 0 20px 5px hsl(var(--accent) / 0.5)' }}
             />
           </div>
 
-          {/* Reviews preview overlay */}
-          <div className="absolute bottom-4 left-3 right-3 sm:left-4 sm:right-4 bg-card/90 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-3 border border-border shadow-lg">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-muted animate-pulse" />
-              <div className="flex-1">
-                <div className="h-2 w-16 sm:w-20 bg-muted rounded animate-pulse" />
-                <div className="h-2 w-24 sm:w-32 bg-muted rounded mt-1 animate-pulse" />
-              </div>
-            </div>
-          </div>
+
         </div>
       </div>
 
       {/* Bottom status bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-to-t from-background via-background to-transparent">
         <div className="max-w-md mx-auto">
-          {/* Status */}
-          <div className="flex items-center gap-2 sm:gap-3 text-foreground mb-3 sm:mb-4">
-            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-accent" />
-            <span className="font-medium text-sm sm:text-base">
+
+          {/* Background shape fitted tightly behind status text */}
+          <div className="relative bg-card/90 backdrop-blur-sm rounded-lg sm:rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 border border-border shadow-lg mb-3 sm:mb-4 inline-flex items-center gap-2 sm:gap-3 w-full">
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-accent flex-shrink-0" />
+            <span className="font-medium text-sm sm:text-base text-foreground">
               {hotelName ? `Scanning photos for ${hotelName}` : 'Scanning photos'}
             </span>
           </div>
 
           {/* Progress bar */}
           <div className="h-1 sm:h-1.5 bg-muted rounded-full overflow-hidden mb-4 sm:mb-6">
-            <div 
+            <div
               className="h-full bg-accent transition-all duration-200 ease-out rounded-full"
               style={{ width: `${progress}%` }}
             />

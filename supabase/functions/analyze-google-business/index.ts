@@ -27,7 +27,7 @@ serve(async (req) => {
 
   try {
     const { hotelName, hotelCity, hotelState, hotelCountry, hotelRating, hotelReviewCount } = await req.json();
-    
+
     console.log('Analyzing Google Business Profile for:', hotelName);
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
@@ -103,7 +103,7 @@ serve(async (req) => {
           const markdown = firecrawlData.data?.markdown || firecrawlData.markdown || '';
 
           // Extract review count patterns like "1,234 reviews" or "(1,234)"
-          const reviewCountMatch = markdown.match(/(\d[\d,]+)\s*(?:reviews?|Google reviews?)/i) 
+          const reviewCountMatch = markdown.match(/(\d[\d,]+)\s*(?:reviews?|Google reviews?)/i)
             || markdown.match(/\((\d[\d,]+)\)/);
           if (reviewCountMatch) {
             const scraped = parseInt(reviewCountMatch[1].replace(/,/g, ''));
@@ -129,8 +129,9 @@ serve(async (req) => {
     }
 
     // Use the most accurate data: Google Places > Firecrawl > passed-in values
-    const finalRating = googleRating || hotelRating || 4.2;
-    const finalReviewCount = googleReviewCount || hotelReviewCount || 0;
+    // Use ?? (nullish coalescing) so that a real count of 0 isn't treated as falsy
+    const finalRating = googleRating ?? hotelRating ?? 4.2;
+    const finalReviewCount = googleReviewCount ?? hotelReviewCount ?? 0;
     console.log(`Final GBP data: rating=${finalRating}, reviewCount=${finalReviewCount}`);
 
     // Step 3: Use Perplexity for profile completeness analysis
@@ -149,6 +150,8 @@ serve(async (req) => {
 
 Return ONLY valid JSON with this structure:
 {
+  "rating": <current Google star rating 1.0-5.0, or null if not found>,
+  "reviewCount": <total number of Google reviews as an integer, or null if not found>,
   "score": <profile completeness score 0-20>,
   "profileItems": [
     {
@@ -181,7 +184,11 @@ Profile items to check:
 Hotel: ${hotelName}
 Location: ${hotelCity || 'Unknown'}, ${hotelState || ''} ${hotelCountry || 'USA'}
 
-Analyze their profile completeness. Look for their real business information, photos, reviews, and whether they actively manage their profile. Do NOT include rating or reviewCount - those are already known.`
+Please:
+1. Search for the REAL current Google review rating (1.0–5.0 stars) and total number of Google reviews for this hotel.
+2. Analyze their profile completeness based on the 12 items in the system prompt.
+
+The rating and review count you find should reflect what is currently shown on Google Maps / Google Business. If you cannot find real data, set them to null — do NOT guess or estimate.`
           }
         ],
       }),
@@ -203,7 +210,7 @@ Analyze their profile completeness. Look for their real business information, ph
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
     const citations = data.citations || [];
-    
+
     console.log('Perplexity GBP response, citations:', citations.length);
 
     // Parse the profile analysis response
@@ -212,9 +219,12 @@ Analyze their profile completeness. Look for their real business information, ph
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        // Use AI-found rating/reviewCount as tertiary fallback (after Google Places & Firecrawl)
+        const aiRating = (parsed.rating && parsed.rating > 0 && parsed.rating <= 5) ? parsed.rating : null;
+        const aiReviewCount = (parsed.reviewCount && parsed.reviewCount > 0) ? parsed.reviewCount : null;
         googleBusinessData = {
-          rating: finalRating,
-          reviewCount: finalReviewCount,
+          rating: finalRating ?? aiRating ?? 4.2,
+          reviewCount: finalReviewCount ?? aiReviewCount ?? (hotelReviewCount ?? 0),
           score: parsed.score || 14,
           profileItems: parsed.profileItems || [],
         };
@@ -244,8 +254,8 @@ Analyze their profile completeness. Look for their real business information, ph
   } catch (error) {
     console.error('Error in analyze-google-business:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       }),
       {
         status: 500,

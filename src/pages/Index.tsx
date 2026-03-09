@@ -27,6 +27,17 @@ const Index = () => {
     setStage('location');
   };
 
+  // Admin reset — triple-click the header title to return to search from any stage
+  const handleReset = () => {
+    setStage('search');
+    setSelectedHotel(null);
+    setScanResult(null);
+    setCompetitors([]);
+    setRankings([]);
+    setSubjectHotelTARank(null);
+    setSubjectHotelStarLevel(null);
+  };
+
   const handleLocationComplete = async () => {
     // Start fetching competitors and rankings in parallel when location is confirmed
     if (selectedHotel) {
@@ -35,7 +46,7 @@ const Index = () => {
         const { data: competitorData, error: competitorError } = await supabase.functions.invoke('generate-competitors', {
           body: { hotel: selectedHotel },
         });
-        
+
         if (!competitorError && competitorData?.competitors) {
           setCompetitors(competitorData.competitors);
           if (competitorData.subjectHotelTripadvisorRank) {
@@ -45,16 +56,16 @@ const Index = () => {
             setSubjectHotelStarLevel(competitorData.subjectHotelStarLevel);
           }
           console.log('Generated competitors:', competitorData.competitors, 'Subject TA rank:', competitorData.subjectHotelTripadvisorRank, 'Star level:', competitorData.subjectHotelStarLevel);
-          
+
           // Now fetch rankings with the competitors context
           try {
             const { data: rankingData, error: rankingError } = await supabase.functions.invoke('generate-rankings', {
-              body: { 
+              body: {
                 hotel: selectedHotel,
-                competitors: competitorData.competitors 
+                competitors: competitorData.competitors
               },
             });
-            
+
             if (!rankingError && rankingData?.rankings) {
               setRankings(rankingData.rankings);
               console.log('Generated rankings:', rankingData.rankings);
@@ -94,8 +105,8 @@ const Index = () => {
   if (stage === 'search') {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
-        
+        <Header onReset={handleReset} />
+
         <main className="pt-24 sm:pt-32 px-3 sm:px-4 pb-12">
           <div className="max-w-2xl mx-auto text-center">
             {/* Main headline */}
@@ -106,7 +117,7 @@ const Index = () => {
             <p className="text-sm sm:text-base text-accent font-medium mb-2 animate-fade-in px-2" style={{ animationDelay: '50ms' }}>
               Search hotels in Knoxville, TN and surrounding areas.
             </p>
-            
+
             <p className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-12 animate-fade-in px-2" style={{ animationDelay: '100ms' }}>
               Scan your site in seconds and make sure your hotel is beating its competitors.
             </p>
@@ -118,20 +129,20 @@ const Index = () => {
 
             {/* Question badges */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 animate-fade-in px-2" style={{ animationDelay: '300ms' }}>
-              <QuestionBadge 
-                icon={Search} 
-                text="How's my Google SEO?" 
-                variant="seo" 
+              <QuestionBadge
+                icon={Search}
+                text="How's my Google SEO?"
+                variant="seo"
               />
-              <QuestionBadge 
-                icon={Boxes} 
-                text="What's broken on my site?" 
-                variant="site" 
+              <QuestionBadge
+                icon={Boxes}
+                text="What's broken on my site?"
+                variant="site"
               />
-              <QuestionBadge 
-                icon={Trophy} 
-                text="Who is beating me and how?" 
-                variant="competitor" 
+              <QuestionBadge
+                icon={Trophy}
+                text="Who is beating me and how?"
+                variant="competitor"
               />
             </div>
           </div>
@@ -140,13 +151,12 @@ const Index = () => {
     );
   }
 
-  // Location confirmation page
   if (stage === 'location' && selectedHotel) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
-        <LocationConfirmation 
-          hotel={selectedHotel} 
+        <Header onReset={handleReset} />
+        <LocationConfirmation
+          hotel={selectedHotel}
           onContinue={handleLocationComplete}
         />
       </div>
@@ -157,9 +167,9 @@ const Index = () => {
   if (stage === 'photos' && selectedHotel) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
-        <PhotoScanning 
-          onComplete={handlePhotosComplete} 
+        <Header onReset={handleReset} />
+        <PhotoScanning
+          onComplete={handlePhotosComplete}
           hotelName={selectedHotel.name}
           hotelImage={selectedHotel.imageUrl}
           hotelPhotos={selectedHotel.photos}
@@ -175,8 +185,8 @@ const Index = () => {
   if (stage === 'reviews' && selectedHotel) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
-        <ReviewScanning 
+        <Header onReset={handleReset} />
+        <ReviewScanning
           onComplete={handleReviewsComplete}
           hotelName={selectedHotel.name}
           hotelCity={selectedHotel.city}
@@ -191,7 +201,7 @@ const Index = () => {
   if (stage === 'results' && scanResult) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header onReset={handleReset} />
         <ScoreCard result={scanResult} subjectHotelTARank={subjectHotelTARank} subjectHotelStarLevel={subjectHotelStarLevel} />
       </div>
     );

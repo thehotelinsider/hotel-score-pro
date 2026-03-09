@@ -9,6 +9,8 @@ interface OTAReviewPerformanceProps {
   isLoading: boolean;
   onRefresh: () => void;
   hotelName: string;
+  googleRating?: number | null;       // real rating from Google Business Profile
+  googleReviewCount?: number | null;  // real review count from Google Business Profile
 }
 
 // Platform configurations
@@ -140,7 +142,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="flex items-center gap-1.5">
@@ -157,7 +159,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
           </div>
         </div>
       </CollapsibleTrigger>
-      
+
       <CollapsibleContent>
         <div className="mt-2 p-4 bg-muted/50 rounded-xl space-y-4">
           {/* Metrics Comparison */}
@@ -176,7 +178,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 {ratingDiff >= 0 ? '+' : ''}{ratingDiff.toFixed(1)} vs avg
               </p>
             </div>
-            
+
             <div className="bg-background p-3 rounded-lg">
               <div className="flex items-center gap-1.5 mb-1">
                 <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
@@ -187,7 +189,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 {reviewCountDiff >= 0 ? '+' : ''}{formatNumber(reviewCountDiff)} vs avg
               </p>
             </div>
-            
+
             <div className="bg-background p-3 rounded-lg">
               <div className="flex items-center gap-1.5 mb-1">
                 <Clock className="w-3.5 h-3.5 text-muted-foreground" />
@@ -198,7 +200,7 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
                 {responseRateDiff >= 0 ? '+' : ''}{responseRateDiff}% vs avg
               </p>
             </div>
-            
+
             <div className="bg-background p-3 rounded-lg">
               <div className="flex items-center gap-1.5 mb-1">
                 <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
@@ -247,17 +249,32 @@ const PlatformItem = ({ platform }: { platform: OTAReviewPlatformMetrics }) => {
   );
 };
 
-const OTAReviewPerformance = ({ platforms, isLoading, onRefresh, hotelName }: OTAReviewPerformanceProps) => {
+const OTAReviewPerformance = ({ platforms, isLoading, onRefresh, hotelName, googleRating, googleReviewCount }: OTAReviewPerformanceProps) => {
+  // Override google_reviews entry with authoritative data from Google Business Profile
+  const mergedPlatforms = platforms.map(p => {
+    if (p.platform === 'google_reviews') {
+      return {
+        ...p,
+        hotelMetrics: {
+          ...p.hotelMetrics,
+          ...(googleRating != null ? { rating: googleRating, originalRating: googleRating, ratingScale: 5 } : {}),
+          ...(googleReviewCount != null ? { reviewCount: googleReviewCount } : {}),
+        },
+      };
+    }
+    return p;
+  });
+
   // Separate by type
-  const reviewPlatforms = platforms.filter(p => p.platformType === 'review');
-  const otaPlatforms = platforms.filter(p => p.platformType === 'ota');
+  const reviewPlatforms = mergedPlatforms.filter(p => p.platformType === 'review');
+  const otaPlatforms = mergedPlatforms.filter(p => p.platformType === 'ota');
 
   // Calculate overall status
   const getOverallStatus = () => {
     if (!platforms.length) return null;
     const avgRank = platforms.reduce((sum, p) => sum + p.rank, 0) / platforms.length;
     const totalCompetitors = platforms[0]?.totalCompetitors || 5;
-    
+
     if (avgRank <= 2) return { label: 'Strong', color: 'text-success' };
     if (avgRank <= Math.ceil(totalCompetitors / 2)) return { label: 'Moderate', color: 'text-warning' };
     return { label: 'Needs Work', color: 'text-danger' };
@@ -332,10 +349,10 @@ const OTAReviewPerformance = ({ platforms, isLoading, onRefresh, hotelName }: OT
               </div>
             </div>
           )}
-          
+
           <div className="mt-4 pt-4 border-t border-border flex justify-end">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={onRefresh}
               disabled={isLoading}

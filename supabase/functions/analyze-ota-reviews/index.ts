@@ -269,7 +269,7 @@ Find the direct listing URLs on TripAdvisor, Google reviews panel, Yelp, Booking
   try {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
-    
+
     // Fill in fallback URLs for any platforms that came back null
     const fallbacks = generateFallbackUrls(hotel);
     for (const [platform, fallbackUrl] of Object.entries(fallbacks)) {
@@ -278,7 +278,7 @@ Find the direct listing URLs on TripAdvisor, Google reviews panel, Yelp, Booking
         console.log(`Using fallback URL for ${platform}: ${fallbackUrl}`);
       }
     }
-    
+
     return parsed;
   } catch (e) {
     console.error('Failed to parse listing URL JSON from Perplexity', e);
@@ -597,22 +597,44 @@ serve(async (req) => {
     // Ensure all 6 platforms are present
     platforms = ensureAllPlatforms(platforms, totalCompetitors);
 
+    // STEP 5: Inject authoritative Google Reviews data directly from hotel object
+    // hotel.rating and hotel.reviewCount come from the Google Places API on initial search
+    // and are far more accurate than anything Perplexity or Firecrawl can retrieve,
+    // since Google blocks scraping of its review pages.
+    if (hotel.rating != null || hotel.reviewCount != null) {
+      console.log(`Step 5: Injecting authoritative Google data: rating=${hotel.rating}, reviewCount=${hotel.reviewCount}`);
+      platforms = platforms.map(p => {
+        if (p.platform !== 'google_reviews') return p;
+        const hasGoogleData = hotel.rating != null || hotel.reviewCount != null;
+        const currentStatus = p.status === 'not_listed' && hasGoogleData ? 'competitive' : p.status;
+        return {
+          ...p,
+          status: currentStatus,
+          hotelMetrics: {
+            ...p.hotelMetrics,
+            rating: hotel.rating ?? p.hotelMetrics.rating,
+            reviewCount: hotel.reviewCount ?? p.hotelMetrics.reviewCount,
+          },
+        };
+      });
+    }
+
     // Dedicated Booking.com verification - always run to ensure accuracy
     const bookingPlatform = platforms.find(p => p.platform === 'booking');
     if (bookingPlatform && PERPLEXITY_API_KEY) {
       try {
         console.log('Running dedicated Booking.com lookup...');
-        
+
         // First try: scrape the known correct Booking.com URL directly with Firecrawl
         const bookingSlug = hotel.name.toLowerCase().replace(/\s+by\s+marriott\s*/i, ' ').trim().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
         const knownBookingUrl = `https://www.booking.com/hotel/us/${bookingSlug}.html`;
         console.log(`Trying known Booking.com URL: ${knownBookingUrl}`);
-        
+
         let bookingRating: number | null = null;
         let bookingReviews: number | null = null;
         let bookingSearchPos: number | null = null;
         let bookingListingUrl: string | null = knownBookingUrl;
-        
+
         if (FIRECRAWL_API_KEY) {
           const markdown = await firecrawlScrapeMarkdown(knownBookingUrl, FIRECRAWL_API_KEY);
           if (markdown) {
@@ -621,7 +643,7 @@ serve(async (req) => {
             console.log(`Booking.com direct scrape: rating=${bookingRating}, reviews=${bookingReviews}`);
           }
         }
-        
+
         // If Firecrawl scrape failed, try Perplexity with domain filter
         if (bookingRating == null && bookingReviews == null) {
           console.log('Firecrawl scrape failed, trying Perplexity with domain filter...');
@@ -667,7 +689,7 @@ RULES:
               if (parsed.review_count != null) bookingReviews = parsed.review_count;
               if (parsed.search_position != null) bookingSearchPos = parsed.search_position;
               if (parsed.listing_url) bookingListingUrl = parsed.listing_url;
-              
+
               // Store original 10-point rating
               if (parsed.rating_out_of_10 != null) {
                 bookingRating = Math.round((parsed.rating_out_of_10 / 2) * 10) / 10;
@@ -677,7 +699,7 @@ RULES:
             } catch (e) { console.error('Failed to parse Booking.com Perplexity response:', e); }
           }
         }
-        
+
         // Apply Booking.com data if we have any
         if (bookingRating != null || bookingReviews != null) {
           const origRating10 = bookingRating != null ? Math.round(bookingRating * 2 * 10) / 10 : null;
@@ -776,6 +798,85 @@ Find the Expedia guest review score (out of 10) and total number of guest review
         }
       } catch (e) { console.error('Expedia dedicated lookup error:', e); }
     }
+
+    // Dedicated TripAdvisor verification - TripAdvisor blocks Firecrawl so we use Perplexity with domain filter
+    const tripAdvisorPlatform = platforms.find(p => p.platform === 'tripadvisor');
+    if (tripAdvisorPlatform && PERPLEXITY_API_KEY) {
+      try {
+        console.log('Running dedicated TripAdvisor lookup...');
+        const taRes = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            temperature: 0.1,
+            search_domain_filter: ['tripadvisor.com'],
+            messages: [
+              {
+                role: 'system',
+                content: `You are a hotel data researcher. Search TripAdvisor for the EXACT hotel specified.
+
+TripAdvisor uses a 5-bubble rating scale (1.0 to 5.0).
+
+CRITICAL RULES:
+- You MUST verify you are looking at the CORRECT hotel by matching BOTH the hotel name AND the city/state.
+- Report the OVERALL TripAdvisor bubble rating (e.g. 4.5) — NOT the "Traveller Rated" or category sub-scores.
+- Report the TOTAL number of TripAdvisor reviews accurately.
+- If you cannot find the hotel or are unsure, return null rather than guessing.
+
+Return ONLY valid JSON (no markdown fences):
+{ "rating_out_of_5": <number like 4.5 or null>, "review_count": <integer or null>, "listing_url": "<direct TripAdvisor hotel page URL or null>" }`,
+              },
+              {
+                role: 'user',
+                content: `Search TripAdvisor for this SPECIFIC hotel:
+Hotel name: "${hotel.name}"
+Address: ${hotel.address}, ${hotel.city}, ${hotel.state}, ${hotel.country}
+
+Find the TripAdvisor overall bubble rating (out of 5) and total number of reviews for this exact hotel.`,
+              },
+            ],
+          }),
+        });
+
+        if (taRes.ok) {
+          const taData = await taRes.json();
+          const taContent = taData.choices?.[0]?.message?.content || '';
+          console.log('TripAdvisor Perplexity response:', taContent.substring(0, 300));
+          try {
+            const jsonMatch = taContent.match(/\{[\s\S]*\}/);
+            const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(taContent);
+            const ratingOut5 = parsed.rating_out_of_5;
+            const reviewCount = parsed.review_count;
+
+            if (ratingOut5 != null || reviewCount != null) {
+              // Validate rating is in a sensible range for TripAdvisor
+              const validRating = (ratingOut5 != null && ratingOut5 >= 1 && ratingOut5 <= 5) ? ratingOut5 : null;
+              console.log(`TripAdvisor verified: rating=${validRating}/5, reviews=${reviewCount}`);
+
+              platforms = platforms.map(p => {
+                if (p.platform !== 'tripadvisor') return p;
+                return {
+                  ...p,
+                  status: (validRating != null || reviewCount != null) && p.status === 'not_listed' ? 'competitive' : p.status,
+                  hotelMetrics: {
+                    ...p.hotelMetrics,
+                    ...(validRating != null ? { rating: validRating } : {}),
+                    ...(reviewCount != null ? { reviewCount } : {}),
+                  },
+                };
+              });
+            } else {
+              console.log('TripAdvisor: no verified data found via Perplexity domain search');
+            }
+          } catch (e) { console.error('Failed to parse TripAdvisor dedicated lookup:', e); }
+        }
+      } catch (e) { console.error('TripAdvisor dedicated lookup error:', e); }
+    }
+
 
     console.log('OTA analysis complete:', platforms.length, 'platforms analyzed');
 

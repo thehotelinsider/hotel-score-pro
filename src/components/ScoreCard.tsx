@@ -11,6 +11,7 @@ import GoogleMapRankings, { MapRanking } from './GoogleMapRankings';
 import OTAReviewPerformance from './OTAReviewPerformance';
 import { GoogleBusinessProfile } from './GoogleBusinessProfile';
 import ContactSection from './ContactSection';
+import SubscriptionModal from './SubscriptionModal';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +45,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
   const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [competitors, setCompetitors] = useState<Competitor[]>(result.competitors);
   const [subjectHotelTARank, setSubjectHotelTARank] = useState<number | null>(initialTARank ?? null);
   const [subjectStarLevel, setSubjectStarLevel] = useState<number | null>(initialStarLevel ?? null);
@@ -58,17 +60,19 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
   const [otaReviewPlatforms, setOtaReviewPlatforms] = useState<OTAReviewPlatformMetrics[]>([]);
   const [isLoadingOtaReviews, setIsLoadingOtaReviews] = useState(false);
   const [gbpScore, setGbpScore] = useState<number | null>(null);
+  const [gbpRating, setGbpRating] = useState<number | null>(null);
+  const [gbpReviewCount, setGbpReviewCount] = useState<number | null>(null);
 
   const scanWebsite = async () => {
     setIsScanning(true);
     setWebsiteScanData(null);
-    
+
     try {
       // Generate a website URL from the hotel name
       const websiteUrl = `${result.hotel.name.toLowerCase().replace(/\s+/g, '')}.com`;
-      
+
       const { data, error } = await supabase.functions.invoke('scan-website', {
-        body: { 
+        body: {
           websiteUrl,
           hotelName: result.hotel.name
         },
@@ -98,7 +102,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
           issues: data.issues,
           scannedCategories: data.scannedCategories,
         });
-        
+
         toast({
           title: "Website scan complete",
           description: `Found ${data.itemsNeedingAttention} items that need attention.`,
@@ -120,7 +124,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
     setIsLoadingSocial(true);
     try {
       const { data, error } = await supabase.functions.invoke('analyze-social-presence', {
-        body: { 
+        body: {
           hotel: result.hotel,
           competitors: competitors.slice(0, 5)
         },
@@ -166,7 +170,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
     setIsLoadingMapRankings(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-map-rankings', {
-        body: { 
+        body: {
           hotel: result.hotel,
           competitors: competitors.slice(0, 10)
         },
@@ -212,7 +216,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
     setIsLoadingOtaReviews(true);
     try {
       const { data, error } = await supabase.functions.invoke('analyze-ota-reviews', {
-        body: { 
+        body: {
           hotel: result.hotel,
           competitors: competitors.slice(0, 5)
         },
@@ -311,16 +315,16 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             .map((c, index) => ({ ...c, rank: index + 1 }));
           return ranked;
         });
-        
+
         const existingNames = new Set(competitors.map(c => c.name.toLowerCase()));
         const addedCount = data.competitors.filter(
           (c: Competitor) => !existingNames.has(c.name.toLowerCase())
         ).length;
-        
+
         onCompetitorsRegenerated?.(data.competitors);
         toast({
           title: "Competitors updated",
-          description: addedCount > 0 
+          description: addedCount > 0
             ? `Added ${addedCount} new competitors near ${result.hotel.city || 'your location'}.`
             : `No new competitors found. Try again for different results.`,
         });
@@ -382,6 +386,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
       setAiRecommendations(data.recommendations);
       setShowRecommendations(true);
+      setShowSubscriptionModal(true); // show subscription popup once results are displayed
     } catch (error) {
       console.error('Error fetching AI recommendations:', error);
       toast({
@@ -399,24 +404,30 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
     .reduce((sum, i) => sum + (i.potentialLoss || 0), 0);
 
   const criticalIssues = result.issues.filter(i => i.severity === 'critical');
-  
-  // Calculate monthly loss estimate based on Overall Online Health Score tiers
-  const getScoreBasedMonthlyLoss = (score: number): { min: number; max: number } => {
-    if (score >= 90) {
-      // Excellent (0–0.5%): $200–$1,463 / month
-      return { min: 200, max: 1463 };
-    } else if (score >= 70) {
-      // Good (0–2%): $1,000–$5,850 / month
-      return { min: 1000, max: 5850 };
-    } else if (score >= 50) {
-      // Fair (2–6%): $5,850–$17,550 / month
-      return { min: 5850, max: 17550 };
+
+  // Monthly loss tiers aligned to the 6-tier Online Score structure
+  const getScoreBasedMonthlyLoss = (score: number): { min: number; max: number; tier: string } => {
+    if (score >= 83) {
+      // Excellent — minimal revenue loss
+      return { min: 200, max: 1451, tier: 'Excellent' };
+    } else if (score >= 76) {
+      // Great — very low revenue loss
+      return { min: 1463, max: 5740, tier: 'Great' };
+    } else if (score >= 56) {
+      // Good — moderate revenue loss
+      return { min: 5750, max: 17480, tier: 'Good' };
+    } else if (score >= 46) {
+      // Fair — significant revenue loss
+      return { min: 17550, max: 21081, tier: 'Fair' };
+    } else if (score >= 21) {
+      // Bad — high revenue loss
+      return { min: 22829, max: 35109, tier: 'Bad' };
     } else {
-      // Low (6–12%): $17,550–$35,100 / month
-      return { min: 17550, max: 35100 };
+      // Very Bad — critical revenue loss
+      return { min: 35200, max: 42012, tier: 'Very Bad' };
     }
   };
-  
+
   const lossRange = getScoreBasedMonthlyLoss(result.score.overall);
   // Use midpoint of range for display, or weighted based on how far into the tier they are
   const monthlyLoss = Math.round((lossRange.min + lossRange.max) / 2);
@@ -433,17 +444,17 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
   // Get website issues
   const websiteIssues = result.issues.filter(i => i.category === 'website' || i.category === 'seo');
-  
+
   // Get search ranking health
   const rankedKeywords = result.rankings.filter(r => typeof r.position === 'number').length;
   const totalKeywords = result.rankings.length;
   const searchHealthPercent = totalKeywords > 0 ? Math.round((rankedKeywords / totalKeywords) * 100) : 0;
 
   // Get strongest competitor (rank 1 or highest rated)
-  const strongestCompetitor = competitors.length > 0 
-    ? competitors.reduce((best, current) => 
-        (current.rating || 0) > (best.rating || 0) ? current : best
-      )
+  const strongestCompetitor = competitors.length > 0
+    ? competitors.reduce((best, current) =>
+      (current.rating || 0) > (best.rating || 0) ? current : best
+    )
     : null;
 
   return (
@@ -455,8 +466,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             {/* Hotel image */}
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg sm:rounded-xl bg-gradient-to-br from-accent to-warning overflow-hidden flex-shrink-0">
               {(result.hotel.imageUrl || result.hotel.photos?.[0] || result.photos[0]) ? (
-                <img 
-                  src={result.hotel.imageUrl || result.hotel.photos?.[0] || result.photos[0]} 
+                <img
+                  src={result.hotel.imageUrl || result.hotel.photos?.[0] || result.photos[0]}
                   alt={result.hotel.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -474,8 +485,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
               <h1 className="text-base sm:text-xl font-display font-bold text-foreground truncate">
                 {result.hotel.name}
               </h1>
-              <a 
-                href="#" 
+              <a
+                href="#"
                 className="text-sm text-accent hover:underline flex items-center gap-1"
               >
                 {result.hotel.name.toLowerCase().replace(/\s+/g, '')}.com
@@ -494,7 +505,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
                 You could be losing ~${monthlyLossRange.min.toLocaleString()}–${monthlyLossRange.max.toLocaleString()}/month
               </p>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4">
               {/* SEO Health */}
               <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
@@ -506,7 +517,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
                   </p>
                 </div>
               </div>
-              
+
               {/* Website Issues */}
               <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
                 <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
@@ -517,7 +528,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
                   </p>
                 </div>
               </div>
-              
+
               {/* Search Results */}
               <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
                 <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
@@ -528,7 +539,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
                   </p>
                 </div>
               </div>
-              
+
               {/* Top Competitor */}
               <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-background/50 rounded-lg">
                 <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
@@ -601,8 +612,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
               <span className="text-xs sm:text-sm">{isRegeneratingCompetitors ? 'Generating...' : 'Generate new'}</span>
             </Button>
           </div>
-          <CompetitorList 
-            competitors={competitors.slice(0, 4)} 
+          <CompetitorList
+            competitors={competitors.slice(0, 4)}
             currentHotelName={result.hotel.name}
             currentHotelRating={result.hotel.rating}
           />
@@ -619,7 +630,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
               <p className="text-[10px] sm:text-xs text-muted-foreground">Personalized insights to boost your online presence</p>
             </div>
           </div>
-          
+
           {!aiRecommendations && !isLoadingAi && (
             <div className="text-center py-8 px-4">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
@@ -629,7 +640,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
               <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
                 Our AI will analyze your hotel's data and provide actionable recommendations to improve rankings and revenue
               </p>
-              <Button 
+              <Button
                 onClick={fetchAiRecommendations}
                 className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity"
                 size="lg"
@@ -655,13 +666,13 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
           {showRecommendations && aiRecommendations && (
             <div className="mt-2">
-              <AiRecommendations 
-                recommendations={aiRecommendations} 
+              <AiRecommendations
+                recommendations={aiRecommendations}
                 onRevenueEstimateExtracted={setRevenueEstimate}
               />
               <div className="mt-4 pt-4 border-t border-border flex justify-end">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={fetchAiRecommendations}
                   disabled={isLoadingAi}
@@ -685,13 +696,13 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
               <p className="text-[10px] sm:text-xs text-muted-foreground">See what's wrong and how to improve</p>
             </div>
           </div>
-          
+
           {!websiteScanData && !isScanning && (
             <div className="text-center">
               <h3 className="text-xl font-semibold text-foreground mb-2">
-                Fix your website in seconds using AI
+                Fix your website using AI insights
               </h3>
-              <Button 
+              <Button
                 onClick={scanWebsite}
                 disabled={isScanning}
                 className="mt-4 bg-primary text-primary-foreground px-8 py-6 text-lg rounded-xl"
@@ -720,7 +731,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
           {websiteScanData && (
             <div className="mt-4">
-              <WebsiteScanResults 
+              <WebsiteScanResults
                 totalItemsScanned={websiteScanData.totalItemsScanned}
                 itemsNeedingAttention={websiteScanData.itemsNeedingAttention}
                 issues={websiteScanData.issues}
@@ -741,7 +752,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
               <p className="text-[10px] sm:text-xs text-muted-foreground">Optimize your local presence</p>
             </div>
           </div>
-          <GoogleBusinessProfile 
+          <GoogleBusinessProfile
             hotelName={result.hotel.name}
             hotelCity={result.hotel.city}
             hotelState={result.hotel.state}
@@ -749,6 +760,10 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             rating={result.hotel.rating}
             reviewCount={result.hotel.reviewCount}
             onScoreLoaded={setGbpScore}
+            onDataLoaded={({ rating, reviewCount }) => {
+              setGbpRating(rating);
+              setGbpReviewCount(reviewCount);
+            }}
           />
         </div>
 
@@ -766,17 +781,15 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1 self-start">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 sm:p-2 rounded-md transition-colors ${
-                  viewMode === 'list' ? 'bg-card shadow-sm' : ''
-                }`}
+                className={`p-1.5 sm:p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-card shadow-sm' : ''
+                  }`}
               >
                 <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={() => setViewMode('map')}
-                className={`p-1.5 sm:p-2 rounded-md transition-colors ${
-                  viewMode === 'map' ? 'bg-card shadow-sm' : ''
-                }`}
+                className={`p-1.5 sm:p-2 rounded-md transition-colors ${viewMode === 'map' ? 'bg-card shadow-sm' : ''
+                  }`}
               >
                 <Map className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
@@ -797,6 +810,8 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             isLoading={isLoadingOtaReviews}
             onRefresh={fetchOtaReviews}
             hotelName={result.hotel.name}
+            googleRating={gbpRating}
+            googleReviewCount={gbpReviewCount}
           />
         </div>
 
@@ -829,6 +844,12 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
       {/* Bottom padding to account for removed fixed CTA */}
       <div className="h-8" />
+
+      {/* Subscription modal — fires after AI recommendations are displayed */}
+      <SubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+      />
     </div>
   );
 };

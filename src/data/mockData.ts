@@ -194,14 +194,28 @@ export const mockHotelPhotos = [
 ];
 
 export function generateMockScanResult(hotel: Hotel): ScanResult {
-  const score = {
-    overall: Math.floor(Math.random() * 30) + 50,
-    seo: Math.floor(Math.random() * 40) + 40,
-    website: Math.floor(Math.random() * 35) + 55,
-    reviews: Math.floor(Math.random() * 25) + 65,
-    socialMedia: Math.floor(Math.random() * 50) + 30,
-    ota: Math.floor(Math.random() * 30) + 60
-  };
+  // Generate individual sub-scores independently
+  const seo = Math.floor(Math.random() * 40) + 40;  // 40–79
+  const website = Math.floor(Math.random() * 35) + 55;  // 55–89
+  const reviews = Math.floor(Math.random() * 25) + 65;  // 65–89
+  const socialMedia = Math.floor(Math.random() * 50) + 30;  // 30–79
+  const ota = Math.floor(Math.random() * 30) + 60;  // 60–89
+
+  // Overall = weighted average of all five sub-scores:
+  //   Reviews     30% — primary guest trust signal
+  //   SEO         25% — online discoverability
+  //   OTA         20% — direct booking channel impact
+  //   Website     15% — brand & conversion foundation
+  //   Social      10% — awareness & engagement
+  const overall = Math.round(
+    reviews * 0.30 +
+    seo * 0.25 +
+    ota * 0.20 +
+    website * 0.15 +
+    socialMedia * 0.10
+  );
+
+  const score = { overall, seo, website, reviews, socialMedia, ota };
 
   return {
     hotel,

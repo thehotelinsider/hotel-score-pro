@@ -24,6 +24,7 @@ interface GoogleBusinessProfileProps {
   rating?: number;
   reviewCount?: number;
   onScoreLoaded?: (score: number) => void;
+  onDataLoaded?: (data: { rating: number; reviewCount: number }) => void;
 }
 
 const getStatusIcon = (status: ProfileItem['status']) => {
@@ -48,14 +49,15 @@ const getStatusBg = (status: ProfileItem['status']) => {
   }
 };
 
-export const GoogleBusinessProfile = ({ 
-  hotelName, 
+export const GoogleBusinessProfile = ({
+  hotelName,
   hotelCity,
   hotelState,
   hotelCountry,
-  rating: initialRating = 4.2, 
+  rating: initialRating = 4.2,
   reviewCount: initialReviewCount = 856,
   onScoreLoaded,
+  onDataLoaded,
 }: GoogleBusinessProfileProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -94,12 +96,15 @@ export const GoogleBusinessProfile = ({
       }
 
       setProfileItems(data.profileItems || []);
-      setRating(data.rating || initialRating);
-      setReviewCount(data.reviewCount || initialReviewCount);
+      const finalRating = data.rating || initialRating;
+      const finalReviewCount = data.reviewCount || initialReviewCount;
+      setRating(finalRating);
+      setReviewCount(finalReviewCount);
       const finalScore = data.score || 0;
       setScore(finalScore);
       setHasLoaded(true);
       onScoreLoaded?.(finalScore);
+      onDataLoaded?.({ rating: finalRating, reviewCount: finalReviewCount });
 
     } catch (error) {
       console.error("Error fetching Google Business data:", error);
@@ -179,7 +184,7 @@ export const GoogleBusinessProfile = ({
           {profileItems.map((item, index) => (
             <Collapsible key={index}>
               <CollapsibleTrigger asChild>
-                <div 
+                <div
                   className={`flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg sm:rounded-xl cursor-pointer transition-colors ${getStatusBg(item.status)}`}
                 >
                   <div className="flex-shrink-0">

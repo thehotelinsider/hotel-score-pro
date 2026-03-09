@@ -93,6 +93,7 @@ export interface SocialPlatformMetrics {
   recommendation: string;
   dataSource?: 'scraped' | 'searched' | 'estimated';
   noDedicatedAccount?: boolean;
+  accountCount?: number; // 0 = none, 1 = one account, 2+ = several accounts
 }
 
 export interface OTAReviewPlatformMetrics {

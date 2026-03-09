@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Phone, User, Send, CheckCircle, Loader2 } from 'lucide-react';
+import { Mail, Phone, User, Send, CheckCircle, Loader2, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,14 +13,15 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [hotelName, setHotelName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!name.trim() || !email.trim() || !phone.trim()) {
+
+    if (!name.trim() || !email.trim() || !phone.trim() || !hotelName.trim()) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -51,23 +52,28 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
       `Name: ${name}\n` +
       `Email: ${email}\n` +
       `Phone: ${phone}\n` +
+      `Hotel Name: ${hotelName}\n` +
       `Current Score: ${currentScore}\n\n` +
       `Please contact me at your earliest convenience.\n\n` +
       `Best regards,\n${name}`
     );
 
     const mailtoLink = `mailto:info@thehotelinsider.co?subject=${subject}&body=${body}`;
-    
-    // Open email client
-    window.location.href = mailtoLink;
-    
-    // Simulate submission delay for UX
+
+    // Use a temporary hidden anchor to trigger mailto without navigating away from the page
+    const anchor = document.createElement('a');
+    anchor.href = mailtoLink;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+
     setTimeout(() => {
       setIsSubmitting(false);
       setIsSubmitted(true);
       toast({
-        title: "Email Client Opened",
-        description: "Your email client has been opened with the consultation request.",
+        title: "Request Ready to Send",
+        description: "Your email client has opened with your details. Click Send to deliver your request to THE HOTEL INSIDER.",
       });
     }, 500);
   };
@@ -81,7 +87,7 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
           </div>
           <h3 className="text-xl font-semibold text-foreground mb-2">Request Sent!</h3>
           <p className="text-muted-foreground mb-4">
-            Your email client should have opened with your consultation request. 
+            Your email client should have opened with your consultation request.
             THE HOTEL INSIDER team will contact you soon.
           </p>
           <Button
@@ -91,6 +97,7 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
               setName('');
               setEmail('');
               setPhone('');
+              setHotelName('');
             }}
           >
             Send Another Request
@@ -111,7 +118,7 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
           Improve Your Hotel's Online Presence
         </h2>
         <p className="text-muted-foreground text-xs sm:text-sm max-w-md mx-auto">
-          Contact <span className="font-semibold text-foreground">THE HOTEL INSIDER</span> for a consultation 
+          Contact <span className="font-semibold text-foreground">THE HOTEL INSIDER</span> for a consultation
           to get your Hotel Online Score Card to a <span className="font-bold text-success">95</span>
         </p>
       </div>
@@ -182,6 +189,24 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
               placeholder="Enter your phone number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              className="pl-10 text-sm"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label htmlFor="hotelName" className="text-xs sm:text-sm font-medium text-foreground">
+            Hotel Name <span className="text-destructive">*</span>
+          </Label>
+          <div className="relative">
+            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              id="hotelName"
+              type="text"
+              placeholder="Enter your hotel name"
+              value={hotelName}
+              onChange={(e) => setHotelName(e.target.value)}
               className="pl-10 text-sm"
               required
             />

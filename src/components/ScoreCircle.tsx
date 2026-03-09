@@ -5,24 +5,30 @@ interface ScoreCircleProps {
 }
 
 const getScoreColor = (score: number): string => {
-  if (score >= 80) return 'text-score-excellent';
-  if (score >= 60) return 'text-score-good';
-  if (score >= 40) return 'text-score-fair';
-  return 'text-score-poor';
+  if (score >= 83) return 'text-score-excellent';   // Excellent
+  if (score >= 76) return 'text-score-good';         // Great
+  if (score >= 56) return 'text-score-fair';         // Good
+  if (score >= 46) return 'text-warning';            // Fair
+  if (score >= 21) return 'text-danger';             // Bad
+  return 'text-[#8B0000]';                           // Very Bad — deep red
 };
 
 const getScoreLabel = (score: number): string => {
-  if (score >= 80) return 'Excellent';
-  if (score >= 60) return 'Good';
-  if (score >= 40) return 'Fair';
-  return 'Poor';
+  if (score >= 83) return 'Excellent';
+  if (score >= 76) return 'Great';
+  if (score >= 56) return 'Good';
+  if (score >= 46) return 'Fair';
+  if (score >= 21) return 'Bad';
+  return 'Very Bad';
 };
 
 const getScoreStrokeColor = (score: number): string => {
-  if (score >= 80) return 'stroke-score-excellent';
-  if (score >= 60) return 'stroke-score-good';
-  if (score >= 40) return 'stroke-score-fair';
-  return 'stroke-score-poor';
+  if (score >= 83) return 'stroke-score-excellent';  // Excellent
+  if (score >= 76) return 'stroke-score-good';       // Great
+  if (score >= 56) return 'stroke-score-fair';       // Good
+  if (score >= 46) return 'stroke-warning';          // Fair
+  if (score >= 21) return 'stroke-danger';           // Bad
+  return 'stroke-[#8B0000]';                         // Very Bad
 };
 
 const sizeMap = {
