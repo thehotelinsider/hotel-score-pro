@@ -175,6 +175,30 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          hotel_name: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          hotel_name: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          hotel_name?: string
+          id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
