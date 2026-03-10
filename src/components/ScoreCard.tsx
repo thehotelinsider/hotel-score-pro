@@ -12,6 +12,7 @@ import OTAReviewPerformance from './OTAReviewPerformance';
 import { GoogleBusinessProfile } from './GoogleBusinessProfile';
 import ContactSection from './ContactSection';
 import SubscriptionModal from './SubscriptionModal';
+import ShareScoreCard from './ShareScoreCard';
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -459,7 +460,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
   return (
     <div className="min-h-screen pt-16 sm:pt-20 pb-24 px-3 sm:px-4">
-      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
+      <div id="score-card-export" className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         {/* Hotel header card */}
         <div className="bg-gradient-to-br from-warning/5 to-accent/5 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-warning/20 animate-fade-in">
           <div className="flex items-start gap-3 sm:gap-4">
@@ -832,6 +833,14 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
             isLoading={isLoadingMapRankings}
             onRefresh={fetchMapRankings}
             hotelName={result.hotel.name}
+          />
+        </div>
+
+        {/* Share / Export Section */}
+        <div className="animate-fade-in" style={{ animationDelay: '550ms' }}>
+          <ShareScoreCard
+            hotelName={result.hotel.name}
+            scoreCardElementId="score-card-export"
           />
         </div>
 
