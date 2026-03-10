@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Mail, User, Building2, Send, Sparkles, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
