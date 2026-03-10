@@ -42,26 +42,30 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ isOpen, onClose }
             return;
         }
 
-        setIsSubmitting(true);
+    setIsSubmitting(true);
 
-        const subject = encodeURIComponent('New Subscription – Hotel Online Score Card');
-        const body = encodeURIComponent(
-            `Hello THE HOTEL INSIDER,\n\n` +
-            `A new user has subscribed to the Hotel Online Score Card.\n\n` +
-            `Subscriber Details:\n` +
-            `Full Name: ${fullName}\n` +
-            `Email: ${email}\n` +
-            `Hotel Name: ${hotelName}\n\n` +
-            `Please add them to the subscription list and follow up at your earliest convenience.\n\n` +
-            `Best regards,\nHotel Online Score Card System`
-        );
+    try {
+      const { data, error } = await supabase.functions.invoke('send-subscription-email', {
+        body: { fullName, email, hotelName },
+      });
 
-        window.location.href = `mailto:info@thehotelinsider.co?subject=${subject}&body=${body}`;
+      if (error) throw error;
 
-        setTimeout(() => {
-            setIsSubmitting(false);
-            setIsSubmitted(true);
-        }, 500);
+      setIsSubmitted(true);
+      toast({
+        title: 'Subscribed!',
+        description: 'Your subscription has been sent to THE HOTEL INSIDER.',
+      });
+    } catch (err) {
+      console.error('Subscription error:', err);
+      toast({
+        title: 'Submission Error',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
     };
 
     const handleClose = () => {

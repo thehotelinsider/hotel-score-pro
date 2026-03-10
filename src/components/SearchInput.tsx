@@ -15,7 +15,7 @@ const SearchInput = ({ onSearch }: SearchInputProps) => {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
