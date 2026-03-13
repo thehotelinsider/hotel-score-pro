@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.fetch-hotel-reviews]
 verify_jwt = false
+
+[functions.process-email-queue]
+verify_jwt = true
+
+[functions.send-subscription-email]
+verify_jwt = false
