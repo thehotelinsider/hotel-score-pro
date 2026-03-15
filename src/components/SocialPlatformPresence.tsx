@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Facebook, Instagram, Youtube, Linkedin, Loader2, FileText, TrendingUp, ChevronDown, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { Facebook, Instagram, Youtube, Linkedin, Loader2, FileText, TrendingUp, ChevronDown, RefreshCw, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { SocialPlatformMetrics } from '@/types/hotel';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // TikTok icon component since lucide-react doesn't have it
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -249,6 +250,13 @@ const SocialPlatformPresence = ({ platforms, isLoading, onRefresh, hotelName }: 
               Refresh
             </Button>
           </div>
+
+          <Alert className="mt-4 bg-muted/50 border-muted-foreground/20">
+            <Info className="h-4 w-4 text-muted-foreground" />
+            <AlertDescription className="text-sm text-muted-foreground">
+              Data for this section may vary without direct access to each platform. Suggestions for improvement are still valid.
+            </AlertDescription>
+          </Alert>
         </>
       )}
     </div>
