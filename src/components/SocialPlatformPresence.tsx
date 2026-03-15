@@ -250,6 +250,13 @@ const SocialPlatformPresence = ({ platforms, isLoading, onRefresh, hotelName }: 
               Refresh
             </Button>
           </div>
+
+          <Alert className="mt-4 bg-muted/50 border-muted-foreground/20">
+            <Info className="h-4 w-4 text-muted-foreground" />
+            <AlertDescription className="text-sm text-muted-foreground">
+              Data for this section may vary without direct access to each platform. Suggestions for improvement are still valid.
+            </AlertDescription>
+          </Alert>
         </>
       )}
     </div>
