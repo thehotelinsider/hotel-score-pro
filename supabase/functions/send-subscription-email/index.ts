@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +24,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const brevoApiKey = Deno.env.get('BREVO_API_KEY')!;
+    const apiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Save subscription to database
@@ -54,31 +55,22 @@ serve(async (req) => {
     const plainText = `New Subscription - ${fullName} (${email}) - Hotel: ${hotelName}`;
     const messageId = `subscription-${crypto.randomUUID()}`;
 
-    // Send email via Brevo API
+    // Send email directly via Lovable Email API
     try {
-      const brevoResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'api-key': brevoApiKey,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          sender: { name: 'Hotel Score Card', email: 'info@thehotelinsider.co' },
-          to: [{ email: 'info@thehotelinsider.co' }],
+      await sendLovableEmail(
+        {
+          to: 'info@thehotelinsider.co',
+          from: 'Hotel Score Card <noreply@notify.go1.thehotelinsider.co>',
+          sender_domain: 'notify.go1.thehotelinsider.co',
           subject: `New Subscription – ${fullName} (${hotelName})`,
-          htmlContent: emailHtml,
-          textContent: plainText,
-          headers: { 'X-Message-Id': messageId },
-        }),
-      });
-
-      if (!brevoResponse.ok) {
-        const errorData = await brevoResponse.text();
-        throw new Error(`Brevo API error [${brevoResponse.status}]: ${errorData}`);
-      }
-
-      await brevoResponse.json();
+          html: emailHtml,
+          text: plainText,
+          purpose: 'transactional',
+          label: 'subscription-notification',
+          message_id: messageId,
+        },
+        { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+      );
 
       // Log success
       await supabase.from('email_send_log').insert({
@@ -89,7 +81,7 @@ serve(async (req) => {
         metadata: { fullName, email, hotelName },
       });
 
-      console.log('Subscription saved and email sent via Brevo:', { fullName, email, hotelName, messageId });
+      console.log('Subscription saved and email sent:', { fullName, email, hotelName, messageId });
     } catch (sendError) {
       console.error('Email send error:', sendError);
 
