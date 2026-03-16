@@ -189,13 +189,8 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
         try {
             toast({
                 title: 'Sending report…',
-                description: 'Generating PDF and sending email from info@thehotelinsider.co.',
+                description: 'Sending email from info@thehotelinsider.co.',
             });
-
-            // Generate and download the PDF locally as well
-            const pdf = await captureAndBuildPDF();
-            const safeName = hotelName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-            pdf.save(`Hotel_Score_Card_${safeName}.pdf`);
 
             // Send email via backend edge function
             const { data, error } = await supabase.functions.invoke('share-report-email', {
@@ -209,7 +204,7 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
 
             toast({
                 title: 'Report sent!',
-                description: `Email sent from info@thehotelinsider.co to ${recipientEmail.trim()}. PDF also saved to Downloads.`,
+                description: `Email sent from info@thehotelinsider.co to ${recipientEmail.trim()}.`,
             });
 
             setShowEmailDialog(false);
