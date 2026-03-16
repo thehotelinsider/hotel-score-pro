@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +21,7 @@ serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const brevoApiKey = Deno.env.get('BREVO_API_KEY')!;
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -63,20 +62,30 @@ serve(async (req) => {
 
     const messageId = `share-report-${crypto.randomUUID()}`;
 
-    await sendLovableEmail(
-      {
-        to: recipientEmail,
-        from: 'The Hotel Insider <info@thehotelinsider.co>',
-        sender_domain: 'notify.go1.thehotelinsider.co',
-        subject: `Hotel Online Score Card – ${hotelName}`,
-        html: emailHtml,
-        text: plainText,
-        purpose: 'transactional',
-        label: 'share-report',
-        message_id: messageId,
+    // Send email via Brevo API
+    const brevoResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': brevoApiKey,
+        'content-type': 'application/json',
       },
-      { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
-    );
+      body: JSON.stringify({
+        sender: { name: 'The Hotel Insider', email: 'info@thehotelinsider.co' },
+        to: [{ email: recipientEmail }],
+        subject: `Hotel Online Score Card – ${hotelName}`,
+        htmlContent: emailHtml,
+        textContent: plainText,
+        headers: { 'X-Message-Id': messageId },
+      }),
+    });
+
+    if (!brevoResponse.ok) {
+      const errorData = await brevoResponse.text();
+      throw new Error(`Brevo API error [${brevoResponse.status}]: ${errorData}`);
+    }
+
+    await brevoResponse.json();
 
     await supabase.from('email_send_log').insert({
       message_id: messageId,
@@ -86,7 +95,7 @@ serve(async (req) => {
       metadata: { hotelName },
     });
 
-    console.log('Report share email sent:', { recipientEmail, hotelName, messageId });
+    console.log('Report share email sent via Brevo:', { recipientEmail, hotelName, messageId });
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
