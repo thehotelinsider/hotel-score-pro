@@ -60,6 +60,7 @@ serve(async (req) => {
         to: 'info@thehotelinsider.co',
         subject: `New Subscription – ${fullName} (${hotelName})`,
         html: emailHtml,
+        text: `New Subscription - ${fullName} (${email}) - Hotel: ${hotelName}`,
         from: 'Hotel Score Card <noreply@notify.go1.thehotelinsider.co>',
         sender_domain: 'notify.go1.thehotelinsider.co',
         purpose: 'transactional',
