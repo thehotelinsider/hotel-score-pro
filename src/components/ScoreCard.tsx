@@ -836,13 +836,6 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
           />
         </div>
 
-        {/* Share / Export Section */}
-        <div className="animate-fade-in" style={{ animationDelay: '550ms' }}>
-          <ShareScoreCard
-            hotelName={result.hotel.name}
-            scoreCardElementId="score-card-export"
-          />
-        </div>
 
         {/* Contact Section - THE HOTEL INSIDER */}
         <div className="animate-fade-in" style={{ animationDelay: '600ms' }}>
