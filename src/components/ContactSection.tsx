@@ -239,6 +239,13 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0, share
           </a>
         </p>
       </form>
+
+      {/* Share Report Button */}
+      {shareButton && (
+        <div className="mt-4 pt-4 border-t border-border/50">
+          {shareButton}
+        </div>
+      )}
     </div>
   );
 };
