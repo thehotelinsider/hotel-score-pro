@@ -60,8 +60,10 @@ serve(async (req) => {
         subject: `New Subscription – ${fullName} (${hotelName})`,
         html: emailHtml,
         from: 'Hotel Score Card <noreply@notify.go1.thehotelinsider.co>',
+        purpose: 'transactional',
         message_id: messageId,
-        template_name: 'subscription-notification',
+        label: 'subscription-notification',
+        queued_at: new Date().toISOString(),
       },
     });
 
