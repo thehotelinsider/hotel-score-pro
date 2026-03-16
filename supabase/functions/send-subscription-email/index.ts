@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,6 +24,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const apiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Save subscription to database
@@ -50,39 +52,49 @@ serve(async (req) => {
       </div>
     `;
 
+    const plainText = `New Subscription - ${fullName} (${email}) - Hotel: ${hotelName}`;
     const messageId = `subscription-${crypto.randomUUID()}`;
 
-    // Enqueue email via the queue system for reliable delivery with retries
-    const { error: enqueueError } = await supabase.rpc('enqueue_email', {
-      queue_name: 'transactional_emails',
-      payload: {
-        run_id: crypto.randomUUID(),
-        to: 'info@thehotelinsider.co',
-        subject: `New Subscription – ${fullName} (${hotelName})`,
-        html: emailHtml,
-        from: 'Hotel Score Card <noreply@notify.go1.thehotelinsider.co>',
-        sender_domain: 'notify.go1.thehotelinsider.co',
-        purpose: 'transactional',
+    // Send email directly via Lovable Email API
+    try {
+      await sendLovableEmail(
+        {
+          to: 'info@thehotelinsider.co',
+          from: 'Hotel Score Card <noreply@notify.go1.thehotelinsider.co>',
+          sender_domain: 'notify.go1.thehotelinsider.co',
+          subject: `New Subscription – ${fullName} (${hotelName})`,
+          html: emailHtml,
+          text: plainText,
+          purpose: 'transactional',
+          label: 'subscription-notification',
+          message_id: messageId,
+        },
+        { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
+      );
+
+      // Log success
+      await supabase.from('email_send_log').insert({
         message_id: messageId,
-        label: 'subscription-notification',
-        queued_at: new Date().toISOString(),
-      },
-    });
+        template_name: 'subscription-notification',
+        recipient_email: 'info@thehotelinsider.co',
+        status: 'sent',
+        metadata: { fullName, email, hotelName },
+      });
 
-    if (enqueueError) {
-      console.error('Enqueue error:', enqueueError);
+      console.log('Subscription saved and email sent:', { fullName, email, hotelName, messageId });
+    } catch (sendError) {
+      console.error('Email send error:', sendError);
+
+      // Log failure
+      await supabase.from('email_send_log').insert({
+        message_id: messageId,
+        template_name: 'subscription-notification',
+        recipient_email: 'info@thehotelinsider.co',
+        status: 'failed',
+        error_message: sendError instanceof Error ? sendError.message : String(sendError),
+        metadata: { fullName, email, hotelName },
+      });
     }
-
-    // Log the pending email
-    await supabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: 'subscription-notification',
-      recipient_email: 'info@thehotelinsider.co',
-      status: 'pending',
-      metadata: { fullName, email, hotelName },
-    });
-
-    console.log('Subscription saved and email enqueued:', { fullName, email, hotelName, messageId });
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
