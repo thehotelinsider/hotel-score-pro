@@ -26,10 +26,6 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
         const container = document.getElementById(scoreCardElementId);
         if (!container) throw new Error('Score card element not found');
 
-        if ('fonts' in document) {
-            await document.fonts.ready;
-        }
-
         const SCALE = 3;
         const PAGE_W = 210;
         const PAGE_H = 297;
@@ -39,15 +35,10 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
         const FOOTER_H = 8;
         const CONTENT_H = PAGE_H - HEADER_H - FOOTER_H;
 
-        const sections = (Array.from(container.children) as HTMLElement[]).filter((el) => {
-            if (el.hasAttribute('data-pdf-hide')) return false;
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
-        });
-
-        if (!sections.length) {
-            throw new Error('No visible report sections found for export');
-        }
+        // Gather visible sections (skip data-pdf-hide elements)
+        const sections = (Array.from(container.children) as HTMLElement[]).filter(
+            (el) => !el.hasAttribute('data-pdf-hide') && el.offsetHeight > 0
+        );
 
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -65,26 +56,9 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
             doc.setTextColor(0, 0, 0);
         };
 
-        const waitForSectionAssets = async (section: HTMLElement) => {
-            const images = Array.from(section.querySelectorAll('img'));
-            await Promise.all(
-                images.map(
-                    (img) =>
-                        img.complete
-                            ? Promise.resolve()
-                            : new Promise<void>((resolve) => {
-                                const done = () => resolve();
-                                img.addEventListener('load', done, { once: true });
-                                img.addEventListener('error', done, { once: true });
-                            })
-                )
-            );
-        };
-
+        // Render each section to a high-res canvas
         const canvases: HTMLCanvasElement[] = [];
         for (const section of sections) {
-            await waitForSectionAssets(section);
-
             const canvas = await html2canvas(section, {
                 scale: SCALE,
                 useCORS: true,
@@ -97,47 +71,29 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
                     });
                 },
             });
-
-            if (canvas.width > 1 && canvas.height > 1) {
-                canvases.push(canvas);
-            }
+            canvases.push(canvas);
         }
 
-        if (!canvases.length) {
-            throw new Error('Failed to capture report sections');
-        }
-
+        // Build page slices – one section per page, tall sections split
         type Slice = { canvas: HTMLCanvasElement; srcY: number; srcH: number };
         const pages: Slice[][] = [];
 
         for (const canvas of canvases) {
-            const wPx = Math.floor(canvas.width);
-            const hPx = Math.floor(canvas.height);
-            if (wPx < 2 || hPx < 2) continue;
-
+            const wPx = canvas.width;
+            const hPx = canvas.height;
             const ratio = USABLE_W / (wPx / SCALE);
-            if (!Number.isFinite(ratio) || ratio <= 0) continue;
+            const mmH = (hPx / SCALE) * ratio;
 
-            const pixelsPerPage = Math.max(1, Math.floor((CONTENT_H / ratio) * SCALE));
-
-            if (hPx <= pixelsPerPage) {
+            if (mmH <= CONTENT_H) {
                 pages.push([{ canvas, srcY: 0, srcH: hPx }]);
-                continue;
+            } else {
+                let offset = 0;
+                while (offset < hPx) {
+                    const sliceH = Math.min((CONTENT_H / ratio) * SCALE, hPx - offset);
+                    pages.push([{ canvas, srcY: offset, srcH: sliceH }]);
+                    offset += sliceH;
+                }
             }
-
-            let offset = 0;
-            while (offset < hPx) {
-                const remaining = hPx - offset;
-                const sliceH = Math.min(pixelsPerPage, remaining);
-                if (sliceH <= 0) break;
-
-                pages.push([{ canvas, srcY: offset, srcH: sliceH }]);
-                offset += sliceH;
-            }
-        }
-
-        if (!pages.length) {
-            throw new Error('Failed to build PDF pages');
         }
 
         const totalPages = pages.length;
@@ -148,29 +104,22 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
 
             let y = HEADER_H + 2;
             for (const { canvas, srcY, srcH } of pages[p]) {
-                const wPx = Math.floor(canvas.width);
+                const wPx = canvas.width;
                 const ratio = USABLE_W / (wPx / SCALE);
-
-                const sourceY = Math.max(0, Math.floor(srcY));
-                const maxSourceH = Math.max(0, canvas.height - sourceY);
-                const sourceH = Math.max(0, Math.min(Math.floor(srcH), maxSourceH));
-
-                if (wPx < 2 || sourceH < 1 || !Number.isFinite(ratio) || ratio <= 0) continue;
 
                 const slice = document.createElement('canvas');
                 slice.width = wPx;
-                slice.height = sourceH;
-                const ctx = slice.getContext('2d');
-                if (!ctx) continue;
+                slice.height = srcH;
+                const ctx = slice.getContext('2d')!;
+                ctx.drawImage(canvas, 0, srcY, wPx, srcH, 0, 0, wPx, srcH);
 
-                ctx.drawImage(canvas, 0, sourceY, wPx, sourceH, 0, 0, wPx, sourceH);
-
-                const sliceMm = (sourceH / SCALE) * ratio;
+                const sliceMm = (srcH / SCALE) * ratio;
                 pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, y, USABLE_W, sliceMm);
                 y += sliceMm + 2;
             }
         }
 
+        // Footer on last page
         pdf.setPage(totalPages);
         pdf.setFontSize(8);
         pdf.setTextColor(100, 116, 139);
