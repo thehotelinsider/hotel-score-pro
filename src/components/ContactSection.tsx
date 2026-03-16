@@ -10,7 +10,7 @@ interface ContactSectionProps {
   shareButton?: React.ReactNode;
 }
 
-const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => {
+const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0, shareButton }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
