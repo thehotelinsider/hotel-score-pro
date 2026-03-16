@@ -26,7 +26,9 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
         const container = document.getElementById(scoreCardElementId);
         if (!container) throw new Error('Score card element not found');
 
-        await document.fonts.ready;
+        if ('fonts' in document) {
+            await document.fonts.ready;
+        }
 
         const SCALE = 3;
         const PAGE_W = 210;
