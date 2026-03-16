@@ -56,10 +56,12 @@ serve(async (req) => {
     const { error: enqueueError } = await supabase.rpc('enqueue_email', {
       queue_name: 'transactional_emails',
       payload: {
+        run_id: crypto.randomUUID(),
         to: 'info@thehotelinsider.co',
         subject: `New Subscription – ${fullName} (${hotelName})`,
         html: emailHtml,
         from: 'Hotel Score Card <noreply@notify.go1.thehotelinsider.co>',
+        sender_domain: 'notify.go1.thehotelinsider.co',
         purpose: 'transactional',
         message_id: messageId,
         label: 'subscription-notification',
