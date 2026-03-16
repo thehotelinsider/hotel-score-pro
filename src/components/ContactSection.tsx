@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface ContactSectionProps {
   currentScore?: number;
+  shareButton?: React.ReactNode;
 }
 
 const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => {
