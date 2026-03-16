@@ -218,21 +218,23 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
             toast({ title: 'Preparing report…', description: 'Generating PDF and sending email.' });
             const blob = await buildPdfBlob();
 
-            // Convert blob to base64
-            const arrayBuffer = await blob.arrayBuffer();
-            const bytes = new Uint8Array(arrayBuffer);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            const pdfBase64 = btoa(binary);
+            // Upload PDF directly to storage
+            const filePath = `${crypto.randomUUID()}/Hotel_Score_Card_${safeName}.pdf`;
+            const { error: uploadError } = await supabase.storage
+                .from('report-pdfs')
+                .upload(filePath, blob, { contentType: 'application/pdf', upsert: false });
 
-            // Send via backend edge function
+            if (uploadError) throw uploadError;
+
+            const { data: urlData } = supabase.storage.from('report-pdfs').getPublicUrl(filePath);
+            const downloadUrl = urlData.publicUrl;
+
+            // Send email with download link
             const { data, error } = await supabase.functions.invoke('send-report-email', {
                 body: {
                     recipientEmail: recipientEmail.trim(),
                     hotelName,
-                    pdfBase64,
+                    downloadUrl,
                 },
             });
 
