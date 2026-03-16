@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { FileDown, Share2, Loader2, Mail, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,49 +16,51 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
     const [recipientEmail, setRecipientEmail] = useState('');
     const { toast } = useToast();
 
-    const captureAndBuildPDF = async () => {
+    const safeName = hotelName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+    const fileName = `Hotel_Score_Card_${safeName}.pdf`;
+
+    const buildPdfBlob = useCallback(async (): Promise<Blob> => {
         const html2canvas = (await import('html2canvas')).default;
         const { jsPDF } = await import('jspdf');
 
         const container = document.getElementById(scoreCardElementId);
         if (!container) throw new Error('Score card element not found');
 
-        const pdfScale = 3;
-        const pdfWidth = 210;
-        const pdfHeight = 297;
-        const margin = 10;
-        const usableWidth = pdfWidth - margin * 2;
-        const headerHeight = 14;
-        const footerHeight = 8;
-        const contentAreaHeight = pdfHeight - headerHeight - footerHeight;
+        const SCALE = 3;
+        const PAGE_W = 210;
+        const PAGE_H = 297;
+        const MARGIN = 10;
+        const USABLE_W = PAGE_W - MARGIN * 2;
+        const HEADER_H = 14;
+        const FOOTER_H = 8;
+        const CONTENT_H = PAGE_H - HEADER_H - FOOTER_H;
 
-        // Collect visible section elements (skip data-pdf-hide elements)
-        const allChildren = Array.from(container.children) as HTMLElement[];
-        const sections = allChildren.filter(
+        // Gather visible sections (skip data-pdf-hide elements)
+        const sections = (Array.from(container.children) as HTMLElement[]).filter(
             (el) => !el.hasAttribute('data-pdf-hide') && el.offsetHeight > 0
         );
 
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-        const addPageHeader = (doc: typeof pdf, pageNum: number, totalPages: number) => {
+        const addHeader = (doc: typeof pdf, page: number, total: number) => {
             doc.setFillColor(30, 41, 59);
-            doc.rect(0, 0, pdfWidth, headerHeight, 'F');
+            doc.rect(0, 0, PAGE_W, HEADER_H, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(10);
             doc.setFont('helvetica', 'bold');
-            doc.text('Hotel Online Score Card', margin, 9);
+            doc.text('Hotel Online Score Card', MARGIN, 9);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-            doc.text(`${hotelName}`, pdfWidth / 2, 9, { align: 'center' });
-            doc.text(`Page ${pageNum} of ${totalPages}  |  thehotelinsider.co`, pdfWidth - margin, 9, { align: 'right' });
+            doc.text(hotelName, PAGE_W / 2, 9, { align: 'center' });
+            doc.text(`Page ${page} of ${total}  |  thehotelinsider.co`, PAGE_W - MARGIN, 9, { align: 'right' });
             doc.setTextColor(0, 0, 0);
         };
 
-        // Capture each section as a high-quality canvas
-        const sectionCanvases: HTMLCanvasElement[] = [];
+        // Render each section to a high-res canvas
+        const canvases: HTMLCanvasElement[] = [];
         for (const section of sections) {
             const canvas = await html2canvas(section, {
-                scale: pdfScale,
+                scale: SCALE,
                 useCORS: true,
                 allowTaint: true,
                 backgroundColor: '#f8fafc',
@@ -69,64 +71,51 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
                     });
                 },
             });
-            sectionCanvases.push(canvas);
+            canvases.push(canvas);
         }
 
-        // Layout: place each section on its own page, splitting if it's taller than the content area
-        let pageIndex = 0;
-        const pageContents: { canvas: HTMLCanvasElement; srcY: number; srcHeight: number }[][] = [];
+        // Build page slices – one section per page, tall sections split
+        type Slice = { canvas: HTMLCanvasElement; srcY: number; srcH: number };
+        const pages: Slice[][] = [];
 
-        for (const canvas of sectionCanvases) {
-            const imgWidthPx = canvas.width;
-            const imgHeightPx = canvas.height;
-            const ratio = usableWidth / (imgWidthPx / pdfScale);
-            const scaledHeightMm = (imgHeightPx / pdfScale) * ratio;
+        for (const canvas of canvases) {
+            const wPx = canvas.width;
+            const hPx = canvas.height;
+            const ratio = USABLE_W / (wPx / SCALE);
+            const mmH = (hPx / SCALE) * ratio;
 
-            if (scaledHeightMm <= contentAreaHeight) {
-                // Fits on one page
-                pageContents.push([{ canvas, srcY: 0, srcHeight: imgHeightPx }]);
+            if (mmH <= CONTENT_H) {
+                pages.push([{ canvas, srcY: 0, srcH: hPx }]);
             } else {
-                // Split across multiple pages
-                const slices: { canvas: HTMLCanvasElement; srcY: number; srcHeight: number }[] = [];
-                let offsetPx = 0;
-                while (offsetPx < imgHeightPx) {
-                    const sliceHeightPx = Math.min(
-                        (contentAreaHeight / ratio) * pdfScale,
-                        imgHeightPx - offsetPx
-                    );
-                    slices.push({ canvas, srcY: offsetPx, srcHeight: sliceHeightPx });
-                    offsetPx += sliceHeightPx;
-                }
-                for (const slice of slices) {
-                    pageContents.push([slice]);
+                let offset = 0;
+                while (offset < hPx) {
+                    const sliceH = Math.min((CONTENT_H / ratio) * SCALE, hPx - offset);
+                    pages.push([{ canvas, srcY: offset, srcH: sliceH }]);
+                    offset += sliceH;
                 }
             }
         }
 
-        const totalPages = pageContents.length;
+        const totalPages = pages.length;
 
         for (let p = 0; p < totalPages; p++) {
             if (p > 0) pdf.addPage();
-            addPageHeader(pdf, p + 1, totalPages);
+            addHeader(pdf, p + 1, totalPages);
 
-            const items = pageContents[p];
-            let yOffset = headerHeight + 2;
+            let y = HEADER_H + 2;
+            for (const { canvas, srcY, srcH } of pages[p]) {
+                const wPx = canvas.width;
+                const ratio = USABLE_W / (wPx / SCALE);
 
-            for (const { canvas, srcY, srcHeight } of items) {
-                const imgWidthPx = canvas.width;
-                const ratio = usableWidth / (imgWidthPx / pdfScale);
+                const slice = document.createElement('canvas');
+                slice.width = wPx;
+                slice.height = srcH;
+                const ctx = slice.getContext('2d')!;
+                ctx.drawImage(canvas, 0, srcY, wPx, srcH, 0, 0, wPx, srcH);
 
-                // Create a slice canvas
-                const sliceCanvas = document.createElement('canvas');
-                sliceCanvas.width = imgWidthPx;
-                sliceCanvas.height = srcHeight;
-                const ctx = sliceCanvas.getContext('2d')!;
-                ctx.drawImage(canvas, 0, srcY, imgWidthPx, srcHeight, 0, 0, imgWidthPx, srcHeight);
-
-                const sliceData = sliceCanvas.toDataURL('image/png');
-                const sliceHeightMm = (srcHeight / pdfScale) * ratio;
-                pdf.addImage(sliceData, 'PNG', margin, yOffset, usableWidth, sliceHeightMm);
-                yOffset += sliceHeightMm + 2;
+                const sliceMm = (srcH / SCALE) * ratio;
+                pdf.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN, y, USABLE_W, sliceMm);
+                y += sliceMm + 2;
             }
         }
 
@@ -137,37 +126,29 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
         const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         pdf.text(
             `Generated on ${date} by The Hotel Insider · info@thehotelinsider.co · thehotelinsider.co`,
-            pdfWidth / 2,
-            pdfHeight - 4,
+            PAGE_W / 2,
+            PAGE_H - 4,
             { align: 'center' }
         );
 
-        return pdf;
-    };
+        return pdf.output('blob');
+    }, [hotelName, scoreCardElementId]);
 
-    const generatePDF = async () => {
+    const handleDownload = async () => {
         setIsGenerating(true);
         try {
-            toast({
-                title: 'Generating PDF…',
-                description: 'This may take a few seconds while we capture all sections.',
-            });
-
-            const pdf = await captureAndBuildPDF();
-            const safeName = hotelName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-            pdf.save(`Hotel_Score_Card_${safeName}.pdf`);
-
-            toast({
-                title: 'PDF downloaded!',
-                description: `Hotel_Score_Card_${safeName}.pdf has been saved to your Downloads folder.`,
-            });
+            toast({ title: 'Generating PDF…', description: 'Capturing all sections at high quality.' });
+            const blob = await buildPdfBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast({ title: 'PDF downloaded!', description: `${fileName} saved to your Downloads folder.` });
         } catch (err) {
             console.error('PDF generation error:', err);
-            toast({
-                title: 'Export failed',
-                description: 'Could not generate the PDF. Please try again.',
-                variant: 'destructive',
-            });
+            toast({ title: 'Export failed', description: 'Could not generate the PDF.', variant: 'destructive' });
         } finally {
             setIsGenerating(false);
         }
@@ -176,47 +157,53 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
     const handleShareViaEmail = async () => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!recipientEmail.trim() || !emailRegex.test(recipientEmail.trim())) {
-            toast({
-                title: 'Invalid email',
-                description: 'Please enter a valid email address.',
-                variant: 'destructive',
-            });
+            toast({ title: 'Invalid email', description: 'Please enter a valid email address.', variant: 'destructive' });
             return;
         }
 
         setIsSharing(true);
         try {
-            toast({
-                title: 'Preparing report…',
-                description: 'Generating PDF and opening your email client.',
-            });
+            toast({ title: 'Preparing report…', description: 'Generating PDF for sharing.' });
+            const blob = await buildPdfBlob();
+            const file = new File([blob], fileName, { type: 'application/pdf' });
 
-            // Generate and download the PDF first
-            const pdf = await captureAndBuildPDF();
-            const safeName = hotelName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-            pdf.save(`Hotel_Score_Card_${safeName}.pdf`);
+            // Try Web Share API with file attachment (supported on modern browsers)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: `Hotel Online Score Card – ${hotelName}`,
+                    text: `Here is the Hotel Online Score Card report for ${hotelName}, generated by The Hotel Insider.`,
+                    files: [file],
+                });
+                toast({ title: 'Report shared!', description: 'The PDF was shared successfully.' });
+            } else {
+                // Fallback: download PDF then open mailto
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                URL.revokeObjectURL(url);
 
-            // Open mailto with pre-filled content
-            const subject = encodeURIComponent(`Hotel Online Score Card – ${hotelName}`);
-            const body = encodeURIComponent(
-                `Hi,\n\nPlease find attached the Hotel Online Score Card report for ${hotelName}.\n\nThis report was generated by The Hotel Insider (thehotelinsider.co) and includes scores for SEO, website quality, reviews, OTA performance, and social media presence.\n\nBest regards`
-            );
-            window.open(`mailto:${encodeURIComponent(recipientEmail.trim())}?subject=${subject}&body=${body}`, '_self');
+                const subject = encodeURIComponent(`Hotel Online Score Card – ${hotelName}`);
+                const body = encodeURIComponent(
+                    `Hi,\n\nPlease find attached the Hotel Online Score Card report for ${hotelName}.\n\nThis report was generated by The Hotel Insider (thehotelinsider.co) and includes scores for SEO, website quality, reviews, OTA performance, and social media presence.\n\nBest regards`
+                );
+                window.open(`mailto:${encodeURIComponent(recipientEmail.trim())}?subject=${subject}&body=${body}`, '_self');
 
-            toast({
-                title: 'PDF downloaded & email opened!',
-                description: 'Attach the downloaded PDF to the email in your mail client.',
-            });
+                toast({
+                    title: 'PDF downloaded & email opened!',
+                    description: 'Please attach the downloaded PDF to the email in your mail client.',
+                });
+            }
 
             setShowEmailDialog(false);
             setRecipientEmail('');
         } catch (err) {
-            console.error('Share error:', err);
-            toast({
-                title: 'Share failed',
-                description: 'Could not prepare the report. Please try again.',
-                variant: 'destructive',
-            });
+            // User may have cancelled the share dialog – not a real error
+            if ((err as Error)?.name !== 'AbortError') {
+                console.error('Share error:', err);
+                toast({ title: 'Share failed', description: 'Could not share the report.', variant: 'destructive' });
+            }
         } finally {
             setIsSharing(false);
         }
@@ -225,37 +212,35 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
     return (
         <div
             data-pdf-hide
-            className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4"
+            className="bg-background rounded-2xl border border-border shadow-sm p-6 space-y-4"
         >
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-between">
-                {/* Left — description */}
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-                        <Share2 className="w-5 h-5 text-slate-600" />
+                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                        <Share2 className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <div>
-                        <p className="font-semibold text-slate-800 text-sm">Share This Report</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="font-semibold text-foreground text-sm">Share This Report</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
                             Export a clean PDF containing all score card results for&nbsp;
-                            <span className="font-medium text-slate-700">{hotelName}</span>.
+                            <span className="font-medium text-foreground">{hotelName}</span>.
                         </p>
                     </div>
                 </div>
 
-                {/* Right — action buttons */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                         onClick={() => setShowEmailDialog((prev) => !prev)}
                         variant="outline"
-                        className="rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 border-slate-300 text-slate-700 hover:bg-slate-50 transition-all"
+                        className="rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2"
                     >
                         <Mail className="w-4 h-4" />
                         Share via Email
                     </Button>
                     <Button
-                        onClick={generatePDF}
+                        onClick={handleDownload}
                         disabled={isGenerating}
-                        className="bg-slate-800 hover:bg-slate-900 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-all"
+                        className="rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2"
                     >
                         {isGenerating ? (
                             <>
@@ -272,9 +257,8 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
                 </div>
             </div>
 
-            {/* Email share dialog */}
             {showEmailDialog && (
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 animate-fade-in">
+                <div className="flex items-center gap-2 pt-2 border-t border-border animate-fade-in">
                     <Input
                         type="email"
                         placeholder="Enter recipient email address"
@@ -287,20 +271,16 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
                     <Button
                         onClick={handleShareViaEmail}
                         disabled={isSharing}
-                        className="bg-accent hover:bg-accent/90 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-all"
+                        className="rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2"
                     >
-                        {isSharing ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                            <Send className="w-4 h-4" />
-                        )}
+                        {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                         Send
                     </Button>
                     <Button
                         onClick={() => { setShowEmailDialog(false); setRecipientEmail(''); }}
                         variant="ghost"
                         size="icon"
-                        className="rounded-xl text-slate-400 hover:text-slate-600"
+                        className="rounded-xl text-muted-foreground hover:text-foreground"
                     >
                         <X className="w-4 h-4" />
                     </Button>
