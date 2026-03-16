@@ -12,7 +12,7 @@ import OTAReviewPerformance from './OTAReviewPerformance';
 import { GoogleBusinessProfile } from './GoogleBusinessProfile';
 import ContactSection from './ContactSection';
 import SubscriptionModal from './SubscriptionModal';
-import ShareScoreCard from './ShareScoreCard';
+
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
