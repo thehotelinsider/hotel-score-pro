@@ -840,7 +840,10 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
         {/* Contact Section - THE HOTEL INSIDER */}
         <div className="animate-fade-in" style={{ animationDelay: '600ms' }}>
-          <ContactSection currentScore={result.score.overall} />
+          <ContactSection
+            currentScore={result.score.overall}
+            shareButton={<ShareReportButton result={result} />}
+          />
         </div>
 
       </div>
