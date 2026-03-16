@@ -7,9 +7,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface ContactSectionProps {
   currentScore?: number;
+  shareButton?: React.ReactNode;
 }
 
-const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => {
+const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0, shareButton }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -238,6 +239,13 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
           </a>
         </p>
       </form>
+
+      {/* Share Report Button */}
+      {shareButton && (
+        <div className="mt-4 pt-4 border-t border-border/50">
+          {shareButton}
+        </div>
+      )}
     </div>
   );
 };
