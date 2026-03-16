@@ -111,14 +111,7 @@ Deno.serve(async (req) => {
       { apiKey, sendUrl: Deno.env.get("LOVABLE_SEND_URL") }
     );
 
-    // Log to report_shares tracking table
-    await supabase.from("report_shares").insert({
-      recipient_email: recipientEmail,
-      hotel_name: hotelName,
-      download_url: downloadUrl,
-    });
-
-    // Log success to email_send_log
+    // Log success
     await supabase.from("email_send_log").insert({
       message_id: messageId,
       template_name: "report-share",

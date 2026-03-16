@@ -262,30 +262,6 @@ export type Database = {
         }
         Relationships: []
       }
-      report_shares: {
-        Row: {
-          download_url: string | null
-          hotel_name: string
-          id: string
-          recipient_email: string
-          sent_at: string
-        }
-        Insert: {
-          download_url?: string | null
-          hotel_name: string
-          id?: string
-          recipient_email: string
-          sent_at?: string
-        }
-        Update: {
-          download_url?: string | null
-          hotel_name?: string
-          id?: string
-          recipient_email?: string
-          sent_at?: string
-        }
-        Relationships: []
-      }
       subscriptions: {
         Row: {
           created_at: string
