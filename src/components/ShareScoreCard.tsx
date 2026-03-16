@@ -20,36 +20,29 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
         const html2canvas = (await import('html2canvas')).default;
         const { jsPDF } = await import('jspdf');
 
-        const element = document.getElementById(scoreCardElementId);
-        if (!element) throw new Error('Score card element not found');
+        const container = document.getElementById(scoreCardElementId);
+        if (!container) throw new Error('Score card element not found');
 
-        const canvas = await html2canvas(element, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#f8fafc',
-            logging: false,
-            onclone: (doc) => {
-                doc.querySelectorAll('[data-pdf-hide]').forEach((el) => {
-                    (el as HTMLElement).style.display = 'none';
-                });
-            },
-        });
-
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
+        const pdfScale = 3;
         const pdfWidth = 210;
         const pdfHeight = 297;
         const margin = 10;
         const usableWidth = pdfWidth - margin * 2;
-        const ratio = usableWidth / (imgWidth / 2);
-        const scaledImgHeightMm = (imgHeight / 2) * ratio;
+        const headerHeight = 14;
+        const footerHeight = 8;
+        const contentAreaHeight = pdfHeight - headerHeight - footerHeight;
+
+        // Collect visible section elements (skip data-pdf-hide elements)
+        const allChildren = Array.from(container.children) as HTMLElement[];
+        const sections = allChildren.filter(
+            (el) => !el.hasAttribute('data-pdf-hide') && el.offsetHeight > 0
+        );
 
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
         const addPageHeader = (doc: typeof pdf, pageNum: number, totalPages: number) => {
             doc.setFillColor(30, 41, 59);
-            doc.rect(0, 0, pdfWidth, 14, 'F');
+            doc.rect(0, 0, pdfWidth, headerHeight, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(10);
             doc.setFont('helvetica', 'bold');
@@ -61,26 +54,83 @@ const ShareScoreCard = ({ hotelName, scoreCardElementId }: ShareScoreCardProps) 
             doc.setTextColor(0, 0, 0);
         };
 
-        const contentAreaHeight = pdfHeight - 14 - 8;
-        const totalPages = Math.ceil(scaledImgHeightMm / contentAreaHeight);
-
-        for (let page = 0; page < totalPages; page++) {
-            if (page > 0) pdf.addPage();
-            addPageHeader(pdf, page + 1, totalPages);
-
-            const srcY = (page * contentAreaHeight) / ratio;
-            const srcHeight = contentAreaHeight / ratio;
-            const sliceCanvas = document.createElement('canvas');
-            sliceCanvas.width = imgWidth;
-            sliceCanvas.height = Math.min(srcHeight * 2, imgHeight - srcY * 2);
-            const ctx = sliceCanvas.getContext('2d')!;
-            ctx.drawImage(canvas, 0, srcY * 2, imgWidth, sliceCanvas.height, 0, 0, imgWidth, sliceCanvas.height);
-
-            const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.92);
-            const sliceHeightMm = (sliceCanvas.height / 2) * ratio;
-            pdf.addImage(sliceData, 'JPEG', margin, 14, usableWidth, sliceHeightMm);
+        // Capture each section as a high-quality canvas
+        const sectionCanvases: HTMLCanvasElement[] = [];
+        for (const section of sections) {
+            const canvas = await html2canvas(section, {
+                scale: pdfScale,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#f8fafc',
+                logging: false,
+                onclone: (doc) => {
+                    doc.querySelectorAll('[data-pdf-hide]').forEach((el) => {
+                        (el as HTMLElement).style.display = 'none';
+                    });
+                },
+            });
+            sectionCanvases.push(canvas);
         }
 
+        // Layout: place each section on its own page, splitting if it's taller than the content area
+        let pageIndex = 0;
+        const pageContents: { canvas: HTMLCanvasElement; srcY: number; srcHeight: number }[][] = [];
+
+        for (const canvas of sectionCanvases) {
+            const imgWidthPx = canvas.width;
+            const imgHeightPx = canvas.height;
+            const ratio = usableWidth / (imgWidthPx / pdfScale);
+            const scaledHeightMm = (imgHeightPx / pdfScale) * ratio;
+
+            if (scaledHeightMm <= contentAreaHeight) {
+                // Fits on one page
+                pageContents.push([{ canvas, srcY: 0, srcHeight: imgHeightPx }]);
+            } else {
+                // Split across multiple pages
+                const slices: { canvas: HTMLCanvasElement; srcY: number; srcHeight: number }[] = [];
+                let offsetPx = 0;
+                while (offsetPx < imgHeightPx) {
+                    const sliceHeightPx = Math.min(
+                        (contentAreaHeight / ratio) * pdfScale,
+                        imgHeightPx - offsetPx
+                    );
+                    slices.push({ canvas, srcY: offsetPx, srcHeight: sliceHeightPx });
+                    offsetPx += sliceHeightPx;
+                }
+                for (const slice of slices) {
+                    pageContents.push([slice]);
+                }
+            }
+        }
+
+        const totalPages = pageContents.length;
+
+        for (let p = 0; p < totalPages; p++) {
+            if (p > 0) pdf.addPage();
+            addPageHeader(pdf, p + 1, totalPages);
+
+            const items = pageContents[p];
+            let yOffset = headerHeight + 2;
+
+            for (const { canvas, srcY, srcHeight } of items) {
+                const imgWidthPx = canvas.width;
+                const ratio = usableWidth / (imgWidthPx / pdfScale);
+
+                // Create a slice canvas
+                const sliceCanvas = document.createElement('canvas');
+                sliceCanvas.width = imgWidthPx;
+                sliceCanvas.height = srcHeight;
+                const ctx = sliceCanvas.getContext('2d')!;
+                ctx.drawImage(canvas, 0, srcY, imgWidthPx, srcHeight, 0, 0, imgWidthPx, srcHeight);
+
+                const sliceData = sliceCanvas.toDataURL('image/png');
+                const sliceHeightMm = (srcHeight / pdfScale) * ratio;
+                pdf.addImage(sliceData, 'PNG', margin, yOffset, usableWidth, sliceHeightMm);
+                yOffset += sliceHeightMm + 2;
+            }
+        }
+
+        // Footer on last page
         pdf.setPage(totalPages);
         pdf.setFontSize(8);
         pdf.setTextColor(100, 116, 139);
