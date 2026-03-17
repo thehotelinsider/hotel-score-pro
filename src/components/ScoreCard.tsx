@@ -12,7 +12,6 @@ import OTAReviewPerformance from './OTAReviewPerformance';
 import { GoogleBusinessProfile } from './GoogleBusinessProfile';
 import ContactSection from './ContactSection';
 import SubscriptionModal from './SubscriptionModal';
-import ShareReportButton from './ShareReportButton';
 
 import { Button } from '@/components/ui/button';
 import { List, Map, Sparkles, ExternalLink, Loader2, Brain, RefreshCw, TrendingDown, Globe, Search, Trophy, ScanLine, MapPin } from 'lucide-react';
@@ -840,10 +839,7 @@ const ScoreCard = ({ result, onCompetitorsRegenerated, subjectHotelTARank: initi
 
         {/* Contact Section - THE HOTEL INSIDER */}
         <div className="animate-fade-in" style={{ animationDelay: '600ms' }}>
-          <ContactSection
-            currentScore={result.score.overall}
-            shareButton={<ShareReportButton result={result} />}
-          />
+          <ContactSection currentScore={result.score.overall} />
         </div>
 
       </div>
