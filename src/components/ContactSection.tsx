@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ContactSectionProps {
   currentScore?: number;
@@ -42,6 +43,19 @@ const ContactSection: React.FC<ContactSectionProps> = ({ currentScore = 0 }) => 
     }
 
     setIsSubmitting(true);
+
+    // Save lead to database
+    try {
+      await supabase.from('contact_leads').insert({
+        full_name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        hotel_name: hotelName.trim(),
+        current_score: currentScore || null,
+      });
+    } catch (err) {
+      console.error('Failed to save contact lead:', err);
+    }
 
     // Create mailto link with pre-filled content
     const subject = encodeURIComponent(`Hotel Score Card Consultation Request`);
