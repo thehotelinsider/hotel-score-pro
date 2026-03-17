@@ -56,6 +56,36 @@ export type Database = {
           },
         ]
       }
+      contact_leads: {
+        Row: {
+          created_at: string
+          current_score: number | null
+          email: string
+          full_name: string
+          hotel_name: string
+          id: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string
+          current_score?: number | null
+          email: string
+          full_name: string
+          hotel_name: string
+          id?: string
+          phone: string
+        }
+        Update: {
+          created_at?: string
+          current_score?: number | null
+          email?: string
+          full_name?: string
+          hotel_name?: string
+          id?: string
+          phone?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
